@@ -6,7 +6,8 @@ EQ_ISO=""
 EQ_INSTALL=false
 EQ_LOCAL_BOOT=true
 EQ_ISCSI_BOOT=false
-EQ_LUN=0
+EQ_BOOT_LUN=0
+EQ_LUNS=""
 EQ_ARCH=$(uname -m)
 EQ_NETWORK=false
 EQ_OS_VERSION="os_name"
@@ -250,9 +251,9 @@ get_options()
                 if [[ "$luns" == *,* ]]; then
                     luns_arr=(${luns//,/ })
                     luns_arr_len=${#luns_arr[@]}
-                    LUN=${luns_arr[0]}
+                    EQ_BOOT_LUN=${luns_arr[0]}
                 else
-                    LUN=${OPTARG}
+                    EQ_BOOT_LUN=${OPTARG}
                 fi
                 ;;
             b)
@@ -469,23 +470,39 @@ set_scsi_disks()
     scsi_initaitor=""
     luns_arr_len=${#luns_arr[@]}
     [[ "${EQ_ISCSI_BOOT}" == "true" ]] && boot_index=",bootindex=0" || boot_index=""
-    if ! "$scsi_drive_mode" ; then
-        block_dev="-blockdev driver=iscsi,transport=tcp,portal=${iscsi_portal}:3260,initiator-name=${iscsi_initiator},target=${iscsi_target},lun=$1,node-name=boot,cache.no-flush=off,cache.direct=on,read-only=off -device ${scsi_device_type},bus=${controller}0.0,id=disk_boot,drive=boot${boot_index}"
-        for ((i=1;i<luns_arr_len;i++)); do
-            block_dev="${block_dev} -blockdev driver=iscsi,transport=tcp,portal=${iscsi_portal}:3260,initiator-name=${iscsi_initiator},target=${iscsi_target},lun=${luns_arr[i]},node-name=data${i},cache.no-flush=off,cache.direct=on,read-only=off -device ${scsi_device_type},bus=${controller}0.0,id=disk${i},drive=data${i}"
-        done
-    else
-        scsi_initaitor="-iscsi initiator-name=${iscsi_initiator}"
-        scsi_drives="-drive file=iscsi://${iscsi_portal}/${iscsi_target}/$1,format=raw,if=none,id=drive_boot -device ${scsi_device_type},id=boot_image,drive=drive_boot,bus=${controller}0.0${boot_index}"
-        for ((i=1;i<luns_arr_len;i++)); do
-           scsi_drives="${scsi_drives} -drive file=iscsi://${iscsi_portal}/${iscsi_target}/${luns_arr[i]},format=raw,if=none,id=drive_image${i} -device ${scsi_device_type},id=image${i},drive=drive_image${i},bus=${controller}0.0"
-        done
-    fi
-
+    local counter=1
+    for lun in "${luns_arr[@]}"; do 
+        if [[ "$scsi_drive_mode" == "false" ]]; then
+            if [[ "${counter}" -eq 1 ]]; then
+                block_dev="-blockdev driver=iscsi,transport=tcp,portal=${iscsi_portal}:3260,\
+initiator-name=${iscsi_initiator},target=${iscsi_target},lun=${EQ_BOOT_LUN},node-name=boot,\
+cache.no-flush=off,cache.direct=on,read-only=off -device ${scsi_device_type},\
+bus=${controller}0.0,id=disk_boot,drive=boot${boot_index}"
+            else
+            block_dev="${block_dev} -blockdev driver=iscsi,transport=tcp,portal=${iscsi_portal}:3260,\
+initiator-name=${iscsi_initiator},target=${iscsi_target},lun=${luns_arr[lun]},\
+node-name=data${lun},cache.no-flush=off,cache.direct=on,read-only=off \
+-device ${scsi_device_type},bus=${controller}0.0,id=disk${lun},drive=data${lun}"   
+            fi
+        else
+            scsi_initaitor="-iscsi initiator-name=${iscsi_initiator}"
+            if [[ "${counter}" -eq 1 ]]; then
+                scsi_drives="-drive file=iscsi://${iscsi_portal}/${iscsi_target}/${EQ_BOOT_LUN},\
+format=raw,if=none,id=drive_boot -device ${scsi_device_type},id=boot_image,\
+drive=drive_boot,bus=${controller}0.0${boot_index}"
+            else
+            scsi_drives="${scsi_drives} \
+-drive file=iscsi://${iscsi_portal}/${iscsi_target}/${luns_arr[${lun}]},\
+format=raw,if=none,id=drive_image${lun} -device ${scsi_device_type},\
+id=image${lun},drive=drive_image${lun},bus=${controller}0.0"
+            fi        
+        fi
+        counter=$((counter+1)) 
+    done
     (( num_data_luns = luns_arr_len - 1 ))
     [[ "${EQ_INSTALL}" == "true" ]] && data_lun_info="" || \
                         data_lun_info="with ${num_data_luns} data LUNs attached."
-    echo -e "\e[32mLAUNCHING VM - Booting from LUN #${EQ_LUN} ${data_lun_info}.\e[39m"
+    echo -e "\e[32mLAUNCHING VM - Booting from LUN #${EQ_BOOT_LUN} ${data_lun_info}.\e[39m"
     echo "iScsi portal: ${iscsi_portal}"
     echo "iScsi target: ${iscsi_target}"
     echo -e "iScsi initiator: ${iscsi_initiator}\n"
@@ -701,7 +718,7 @@ copy_edk2_files
 
 if [[ "${EQ_INSTALL}" == "true" ]]; then
     get_iso
-    block_dev="-blockdev driver=iscsi,transport=tcp,portal=${iscsi_portal}:3260,initiator-name=${iscsi_initiator},target=${iscsi_target},lun=${EQ_LUN},node-name=oci-bm-iscsi,cache.no-flush=off,cache.direct=on,read-only=off -device ${scsi_device_type},bus=${controller}0.0,id=disk1,drive=oci-bm-iscsi"
+    block_dev="-blockdev driver=iscsi,transport=tcp,portal=${iscsi_portal}:3260,initiator-name=${iscsi_initiator},target=${iscsi_target},lun=${EQ_BOOT_LUN},node-name=oci-bm-iscsi,cache.no-flush=off,cache.direct=on,read-only=off -device ${scsi_device_type},bus=${controller}0.0,id=disk1,drive=oci-bm-iscsi"
     cdrom="-cdrom ${EQ_ISO} -boot d"
     if [[ ("${mode}" == "local") && ( ! -z "${EQ_CUSTOM_IMAGE}" ) ]]
     then
@@ -712,7 +729,7 @@ else
     [[ "${EQ_LOCAL_BOOT}" == "true" ]] && set_local_disk
     if [[ "${mode}" == "iscsi" ]]
     then
-        set_scsi_disks ${EQ_LUN}
+        set_scsi_disks ${EQ_BOOT_LUN}
     fi
 fi
 
