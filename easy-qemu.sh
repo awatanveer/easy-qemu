@@ -1,5 +1,6 @@
 #!/bin/bash
 
+EQ_CONFIG_FILE="config"
 EQ_OS=""
 EQ_CUSTOM_IMAGE=""
 EQ_ISO=""
@@ -12,6 +13,12 @@ EQ_ARCH=$(uname -m)
 EQ_NETWORK=false
 EQ_OS_VERSION="os_name"
 EQ_LUN_ARRAY=""
+EQ_SCSI_DRIVE_MODE=true
+EQ_ISCSI_PORTAL_IP=""
+EQ_ISCSI_TARGET=""
+EQ_ISCSI_INITIATOR=""
+EQ_BLOCK_DEVS=""
+EQ_SCSI_DRIVES=""
 
 QEMU_CMD=""
 nic_model="e1000"
@@ -23,10 +30,6 @@ pci_bus=""
 boot_lun=3
 initial_lun=7
 end_lun=13
-scsi_drive_mode=true
-iscsi_portal="127.0.0.1"
-iscsi_target="iqn.2021-02.target"
-iscsi_initiator="iqn.2015-02.boot"
 
 local_disk=""
 local_disk_type="ide"
@@ -42,6 +45,21 @@ pre_launch_option=''
 iommu_plat=''
 fips=false
 sev=false
+
+get_param_from_config()
+{
+    [[ $# -ne 1 ]] && echo "get_param_from_config: no parameter specified" && return 1
+    local param=$1
+    local param_val=""
+    if [[ -f "${EQ_CONFIG_FILE}" ]]; then
+        param_val=$(cat ${EQ_CONFIG_FILE} | grep ${param} | cut -d'=' -f2)
+    else
+        # TODO: Decide what to do when config file is not found. 
+        # SET default values?
+        echo "config file not found."
+    fi
+    echo ${param_val}
+}
 
 detect_package_manager()
 {
@@ -296,7 +314,7 @@ get_options()
                 fi
                 ;;
             B)
-                scsi_drive_mode=false
+                EQ_SCSI_DRIVE_MODE=false
                 ;;
             D)
                 no_defaults=""
@@ -357,6 +375,9 @@ get_options()
 }
 set_defaults() 
 {
+    EQ_ISCSI_PORTAL_IP=$(get_param_from_config ISCSI_PORTAL_IP)
+    EQ_ISCSI_TARGET=$(get_param_from_config ISCSI_TARGET)
+    EQ_ISCSI_INITIATOR=$(get_param_from_config ISCSI_INITIATOR)
     add_args=""
     secure_boot=false
     secure_boot_debug=false
@@ -464,37 +485,34 @@ get_iso()
 
 set_scsi_disks() 
 {
-    block_dev=""
-    scsi_drives=""
-    scsi_initaitor=""
     [[ "${EQ_ISCSI_BOOT}" == "true" ]] && boot_index=",bootindex=0" || boot_index=""
     local counter=1
     for lun in "${EQ_LUN_ARRAY[@]}"; do 
-        if [[ "$scsi_drive_mode" == "false" ]]; then
+        if [[ "${EQ_SCSI_DRIVE_MODE}" == "false" ]]; then
             if [[ "${counter}" -eq 1 ]]; then
-                block_dev=$(printf %s "-blockdev driver=iscsi,transport=tcp,"\
-                        "portal=${iscsi_portal}:3260,initiator-name=${iscsi_initiator},"\
-                        "target=${iscsi_target},lun=${EQ_BOOT_LUN},node-name=boot,"\
+                EQ_BLOCK_DEVS=$(printf %s "-blockdev driver=iscsi,transport=tcp,"\
+                        "portal=${EQ_ISCSI_PORTAL_IP}:3260,initiator-name=${EQ_ISCSI_INITIATOR},"\
+                        "target=${EQ_ISCSI_TARGET},lun=${EQ_BOOT_LUN},node-name=boot,"\
                         "cache.no-flush=off,cache.direct=on,read-only=off -device ${scsi_device_type},"\
                         "bus=${controller}0.0,id=disk_boot,drive=boot${boot_index}")
             else
-                block_dev=$(printf %s "${block_dev} -blockdev driver=iscsi,transport=tcp,"\
-                        "portal=${iscsi_portal}:3260,initiator-name=${iscsi_initiator},"\
-                        "target=${iscsi_target},lun=${EQ_LUN_ARRAY[lun]},node-name=data${lun},"\
+                EQ_BLOCK_DEVS=$(printf %s "${EQ_BLOCK_DEVS} -blockdev driver=iscsi,transport=tcp,"\
+                        "portal=${EQ_ISCSI_PORTAL_IP}:3260,initiator-name=${iscsi_initiator},"\
+                        "target=${EQ_ISCSI_TARGET},lun=${EQ_LUN_ARRAY[lun]},node-name=data${lun},"\
                         "cache.no-flush=off,cache.direct=on,read-only=off "\
                         "-device ${scsi_device_type},bus=${controller}0.0,id=disk${lun},"\
                         "drive=data${lun}")   
             fi
         else
-            scsi_initaitor="-iscsi initiator-name=${iscsi_initiator}"
+            iscsi_initiator_val="-iscsi initiator-name=${EQ_ISCSI_INITIATOR}"
             if [[ "${counter}" -eq 1 ]]; then
-                scsi_drives=$(printf %s "-drive "\
-                            "file=iscsi://${iscsi_portal}/${iscsi_target}/${EQ_BOOT_LUN},"\
+                EQ_SCSI_DRIVES=$(printf %s "-drive "\
+                            "file=iscsi://${EQ_ISCSI_PORTAL_IP}/${EQ_ISCSI_TARGET}/${EQ_BOOT_LUN},"\
                             "format=raw,if=none,id=drive_boot -device ${scsi_device_type},"\
                             "id=boot_image,drive=drive_boot,bus=${controller}0.0${boot_index}")
             else
-                scsi_drives=$(printf %s "${scsi_drives} "\
-                            "-drive file=iscsi://${iscsi_portal}/${iscsi_target}/${EQ_LUN_ARRAY[${lun}]},"\
+                EQ_SCSI_DRIVES=$(printf %s "${EQ_SCSI_DRIVES} "\
+                            "-drive file=iscsi://${EQ_ISCSI_PORTAL_IP}/${EQ_ISCSI_TARGET}/${EQ_LUN_ARRAY[${lun}]},"\
                             "format=raw,if=none,id=drive_image${lun} -device ${scsi_device_type},"\
                             "id=image${lun},drive=drive_image${lun},bus=${controller}0.0")
             fi        
@@ -508,7 +526,6 @@ set_scsi_disks()
     echo "iScsi portal: ${iscsi_portal}"
     echo "iScsi target: ${iscsi_target}"
     echo -e "iScsi initiator: ${iscsi_initiator}\n"
-
 }
 
 set_local_disk()
@@ -613,9 +630,9 @@ qemu_cmd_to_file()
     [[ ! -z  $virtio_device  ]] && content="${content}${virtio_device} \\\\\n"
     [[ ! -z  $ahci  ]] && content="${content}${ahci} \\\\\n"
     [[ ! -z  $local_disk  ]] && content="${content}${local_disk} \\\\\n"
-    [[ ! -z  $block_dev  ]] && content="${content}${block_dev} \\\\\n"
-    [[ ! -z  $scsi_initaitor  ]] && content="${content}${scsi_initaitor} \\\\\n"
-    [[ ! -z  $scsi_drives  ]] && content="${content}${scsi_drives} \\\\\n"
+    [[ ! -z  ${EQ_BLOCK_DEVS}  ]] && content="${content}${EQ_BLOCK_DEVS} \\\\\n"
+    [[ ! -z  ${iscsi_initiator_val}  ]] && content="${content}${iscsi_initiator_val} \\\\\n"
+    [[ ! -z  ${EQ_SCSI_DRIVES}  ]] && content="${content}${EQ_SCSI_DRIVES} \\\\\n"
     [[ ! -z  $pcie_root_devices  ]] && content="${content}${pcie_root_devices} \\\\\n"
     [[ ! -z  $cdrom  ]] && content="${content}${cdrom} \\\\\n"
     [[ ! -z  $net  ]] && content="${content}${net} \\\\\n"
@@ -666,8 +683,8 @@ ipxe_settings()
     if "$ipxe" ; then
         ahci="" 
         local_disk=""
-        block_dev=""
-        scsi_drives=""   
+        EQ_BLOCK_DEVS=""
+        EQ_SCSI_DRIVES=""   
     fi
 }
 
@@ -720,11 +737,15 @@ copy_edk2_files
 
 if [[ "${EQ_INSTALL}" == "true" ]]; then
     get_iso
-    block_dev="-blockdev driver=iscsi,transport=tcp,portal=${iscsi_portal}:3260,initiator-name=${iscsi_initiator},target=${iscsi_target},lun=${EQ_BOOT_LUN},node-name=oci-bm-iscsi,cache.no-flush=off,cache.direct=on,read-only=off -device ${scsi_device_type},bus=${controller}0.0,id=disk1,drive=oci-bm-iscsi"
+    EQ_BLOCK_DEVS=$(printf %s"-blockdev driver=iscsi,transport=tcp,"\
+            "portal=${EQ_ISCSI_PORTAL_IP}:3260,initiator-name=${EQ_ISCSI_INITIATOR},"\
+            "target=${EQ_ISCSI_TARGET},lun=${EQ_BOOT_LUN},node-name=oci-bm-iscsi,"\
+            "cache.no-flush=off,cache.direct=on,read-only=off "\
+            "-device ${scsi_device_type},bus=${controller}0.0,id=disk1,drive=oci-bm-iscsi")
     cdrom="-cdrom ${EQ_ISO} -boot d"
     if [[ ("${mode}" == "local") && ( ! -z "${EQ_CUSTOM_IMAGE}" ) ]]
     then
-        block_dev="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=local_disk0,media=disk -device ide-hd,drive=local_disk0,id=local_disk1"
+        EQ_BLOCK_DEVS="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=local_disk0,media=disk -device ide-hd,drive=local_disk0,id=local_disk1"
     fi
 else
     cdrom=""
@@ -740,7 +761,7 @@ ipxe_settings
 ($pl_mode) && pre_launch_mode_settings
 ($sev) && enable_sev
 
-vm_launch_cmd="${QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${virtio_device} ${ihc9} ${debug_con} ${ahci} ${local_disk} ${block_dev} ${scsi_initaitor} ${scsi_drives} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${sev_args}"
+vm_launch_cmd="${QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${virtio_device} ${ihc9} ${debug_con} ${ahci} ${local_disk} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${sev_args}"
 
 echo -e "QEMU Command:\n${vm_launch_cmd}"
 echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat

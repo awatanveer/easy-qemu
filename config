@@ -1,0 +1,3 @@
+ISCSI_PORTAL_IP=localhost
+ISCSI_TARGET=iqn.2021-02.target
+ISCSI_INITIATOR=iqn.2015-02.boot
