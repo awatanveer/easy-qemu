@@ -27,6 +27,8 @@ EQ_LOCAL_DISK_TYPE="ide"
 EQ_NIC_MODEL=""
 EQ_PCI_BUS=""
 EQ_ROM_FILE=""
+EQ_SEV=false
+EQ_SEV_ARGS=""
 
 ubuntu=false
 ubuntu_host=false
@@ -45,7 +47,6 @@ pl_mode=false
 pre_launch_option=''
 iommu_plat=''
 fips=false
-sev=false
 
 get_param_from_config()
 {
@@ -242,7 +243,7 @@ get_options()
                         export OPENSSL_FORCE_FIPS_MODE=1
                         ;;
                     sev)
-                        sev=true
+                        EQ_SEV=true
                         cpu="-cpu host,+host-phys-bits"
                         iommu_plat=",disable-legacy=on,iommu_platform=true"
                         ;;
@@ -589,7 +590,7 @@ set_network()
         if [[ "${EQ_IPXE}" == "true" ]]; then
             ipxe_param=",romfile=${EQ_ROM_FILE}"
         fi
-        if "$sev" ; then
+        if [[ "${sev}" == "true" ]]; then
             ipxe_param=",romfile=''"
         fi
         net=$(printf %s "-netdev tap,"\
@@ -652,7 +653,7 @@ qemu_cmd_to_file()
     [[ ! -z  $daemonize  ]] && content="${content}${daemonize} \\\\\n" 
     [[ ! -z  $usb_mouse  ]] && content="${content}${usb_mouse} \\\\\n"
     [[ ! -z  $add_args  ]] && content="${content}${add_args} \\\\\n"
-    [[ ! -z  $sev_args  ]] && content="${content}${sev_args} \\\\\n"
+    [[ ! -z  ${EQ_SEV_ARGS}  ]] && content="${content}${EQ_SEV_ARGS} \\\\\n"
     
     
     echo -e ${content} > OL${EQ_OS_VERSION}-uefi.sh
@@ -731,9 +732,10 @@ get_c_bit()
 
 enable_sev()
 {
-    
     get_c_bit
-    sev_args="-device virtio-rng-pci,disable-legacy=on,iommu_platform=true -object sev-guest,id=sev0,cbitpos=${c_bit},reduced-phys-bits=1 -machine memory-encryption=sev0"
+    EQ_SEV_ARGS=$(printf %s "-device virtio-rng-pci,disable-legacy=on,"
+                "iommu_platform=true -object sev-guest,id=sev0,cbitpos=${c_bit},"\
+                "reduced-phys-bits=1 -machine memory-encryption=sev0")
     virtio_device="-device virtio-scsi-pci,id=virtio-scsi-pci0${iommu_plat}"
 }
 
@@ -768,9 +770,9 @@ fi
 ipxe_settings 
 
 ($pl_mode) && pre_launch_mode_settings
-($sev) && enable_sev
+[[ "${EQ_SEV}"  == "true" ]] && enable_sev
 
-vm_launch_cmd="${EQ_QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${virtio_device} ${ihc9} ${debug_con} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${sev_args}"
+vm_launch_cmd="${EQ_QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${virtio_device} ${ihc9} ${debug_con} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${EQ_SEV_ARGS}"
 
 echo -e "QEMU Command:\n${vm_launch_cmd}"
 echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
