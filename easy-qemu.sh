@@ -1,6 +1,7 @@
 #!/bin/bash
 
 EQ_CONFIG_FILE="config"
+EQ_QEMU_CMD=""
 EQ_OS=""
 EQ_CUSTOM_IMAGE=""
 EQ_ISO=""
@@ -25,7 +26,7 @@ EQ_LOCAL_DISK_PARAM=""
 EQ_LOCAL_DISK_TYPE="ide"
 
 
-QEMU_CMD=""
+
 nic_model="e1000"
 nic_model_set=false
 ubuntu=false
@@ -415,24 +416,22 @@ set_defaults()
 
 get_qemu() 
 {
-    host_ol_ver=$(cat /etc/*release | grep VERSION_ID | cut -d'=' -f2 | sed 's/"//g' | grep -o "^.")
-    
-    if [ "${EQ_ARCH}" = "x86_64" ]; then
-        QEMU_CMD=qemu-system-x86_64
-    elif [ "${EQ_ARCH}" = "aarch64" ]; then
-        QEMU_CMD=qemu-system-aarch64
+    if [[ "${EQ_ARCH}" = "x86_64" ]]; then
+        EQ_QEMU_CMD="qemu-system-x86_64"
+    elif [[ "${EQ_ARCH}" == "aarch64" ]]; then
+        EQ_QEMU_CMD="qemu-system-aarch64"
     else
-        echo -e "This script does not support this architecture.\n"
-    fi
-    [[ "$host_ol_ver" == "8" || "$host_ol_ver" == "9" ]] && QEMU_CMD=/usr/libexec/qemu-kvm #cater for OL8
-    if command -v $QEMU_CMD &> /dev/null
-    then
-        QEMU_CMD=$(command -v $QEMU_CMD)
-        echo -e "\e[34mHypervisor    : \e[39m$(${QEMU_CMD} --version | grep -i emul)"
-    else
-        echo "\e[34mHypervisor    : \e[31mQemu not found on the system.\n\e[39m"
+        echo -e "Architecture not supported.\n"
         exit 1
     fi
+    if [[ ! `command -v "${EQ_QEMU_CMD}"` ]]; then
+        EQ_QEMU_CMD="/usr/libexec/qemu-kvm"
+        if [[ ! `command -v  "${EQ_QEMU_CMD}"` ]]; then
+            echo "\e[34mHypervisor    : \e[31mQemu not found on the system.\n\e[39m"
+            exit 1
+        fi
+    fi
+    echo -e "\e[34mHypervisor    : \e[39m$(${EQ_QEMU_CMD} --version | grep -i emul)"
 }
 
 get_edk2_info()
@@ -622,7 +621,7 @@ add_pcie_root_ports_devices()
 qemu_cmd_to_file()
 {
     content='#!/bin/bash\n\n'
-    content="${content}${QEMU_CMD} ${name} \\\\\n"
+    content="${content}${EQ_QEMU_CMD} ${name} \\\\\n"
     content="${content}${machine} \\\\\n"
     content="${content}-enable-kvm \\\\\n"
     content="${content}${cpu} \\\\\n"
@@ -768,7 +767,7 @@ ipxe_settings
 ($pl_mode) && pre_launch_mode_settings
 ($sev) && enable_sev
 
-vm_launch_cmd="${QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${virtio_device} ${ihc9} ${debug_con} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${sev_args}"
+vm_launch_cmd="${EQ_QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${virtio_device} ${ihc9} ${debug_con} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${sev_args}"
 
 echo -e "QEMU Command:\n${vm_launch_cmd}"
 echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
