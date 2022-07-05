@@ -21,6 +21,8 @@ EQ_BLOCK_DEVS=""
 EQ_SCSI_DRIVES=""
 EQ_SCSI_DEVICE_TYPE="scsi-block"
 EQ_CONTROLLER=""
+EQ_LOCAL_DISK_TYPE="ide"
+
 
 QEMU_CMD=""
 nic_model="e1000"
@@ -34,7 +36,6 @@ initial_lun=7
 end_lun=13
 
 local_disk=""
-local_disk_type="ide"
 telnet_port=4444
 mode="local"
 tpm=false
@@ -334,9 +335,9 @@ get_options()
                 # existing or starting with dash?
                 if [[ -n $nextopt && $nextopt != -* ]] ; then
                   OPTIND=$((OPTIND + 1))
-                  local_disk_type=$nextopt
+                  EQ_LOCAL_DISK_TYPE=$nextopt
                 else
-                  local_disk_type="ide"
+                  EQ_LOCAL_DISK_TYPE="ide"
                 fi
                 ;;
             M)
@@ -531,18 +532,18 @@ set_scsi_disks()
 
 set_local_disk()
 {
-    if [ "${local_disk_type}" == "ide" ]; then
+    if [[ "${EQ_LOCAL_DISK_TYPE}" == "ide" ]]; then
         local_disk="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=local_disk0,media=disk -device ide-hd,drive=local_disk0,id=local_disk1,bootindex=0"
         if [ "${EQ_ARCH}" == "aarch64" ]; 
         then
             local_disk="-hda ${EQ_CUSTOM_IMAGE} -boot order=c,menu=on"
         fi
-    elif [ "${local_disk_type}" == "virtio-scsi" ]; then
+    elif [[ "${EQ_LOCAL_DISK_TYPE}" == "virtio-scsi" ]]; then
         local_disk="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=virtscsi_disk,media=disk -device scsi-hd,drive=virtscsi_disk,bus=${EQ_CONTROLLER}0.0,id=local_disk0,bootindex=0"
-    elif [ "${local_disk_type}" == "virtio-blk" ]; then
+    elif [[ "${EQ_LOCAL_DISK_TYPE}" == "virtio-blk" ]]; then
         local_disk="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=virtblk_disk,media=disk -device virtio-blk-pci,drive=virtblk_disk,id=local_disk0,bootindex=0"
     else
-        echo -e "\e[31m${local_disk_type} is invalid storage device type for -d \n\e[39m"
+        echo -e "\e[31m${EQ_LOCAL_DISK_TYPE} is invalid storage device type for -d \n\e[39m"
         exit 1 
     fi
     
