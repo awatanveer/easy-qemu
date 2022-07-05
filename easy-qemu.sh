@@ -19,6 +19,8 @@ EQ_ISCSI_TARGET=""
 EQ_ISCSI_INITIATOR=""
 EQ_BLOCK_DEVS=""
 EQ_SCSI_DRIVES=""
+EQ_SCSI_DEVICE_TYPE="scsi-block"
+EQ_CONTROLLER=""
 
 QEMU_CMD=""
 nic_model="e1000"
@@ -33,7 +35,6 @@ end_lun=13
 
 local_disk=""
 local_disk_type="ide"
-scsi_device_type="scsi-block"
 telnet_port=4444
 mode="local"
 tpm=false
@@ -323,8 +324,8 @@ get_options()
                 cpu="-cpu ${OPTARG}"
                 ;;
             c)
-                controller=${OPTARG}
-                virtio_device="-device ${controller},id=${controller}0"
+                EQ_CONTROLLER=${OPTARG}
+                virtio_device="-device ${EQ_CONTROLLER},id=${EQ_CONTROLLER}0"
                 ;;
             d)
                 EQ_LOCAL_BOOT=true
@@ -360,7 +361,7 @@ get_options()
                tpm=true
                ;;
             t)
-               scsi_device_type=${OPTARG}
+               EQ_SCSI_DEVICE_TYPE=${OPTARG}
                ;;
             h)
                 usage
@@ -390,7 +391,7 @@ set_defaults()
     vnc="-vnc 0.0.0.0:0,to=999"
     qmp_sock="-qmp tcp:127.0.0.1:3334,server,nowait"
     serial="-serial telnet:127.0.0.1:3333,server,nowait"
-    controller="virtio-scsi-pci"
+    EQ_CONTROLLER="virtio-scsi-pci"
     virtio_device="-device virtio-scsi-pci,id=virtio-scsi-pci0"
     log_file="-D ./OL${EQ_OS_VERSION}-uefi.log"
     usb_mouse=""
@@ -494,14 +495,14 @@ set_scsi_disks()
                 EQ_BLOCK_DEVS=$(printf %s "-blockdev driver=iscsi,transport=tcp,"\
                         "portal=${EQ_ISCSI_PORTAL_IP}:3260,initiator-name=${EQ_ISCSI_INITIATOR},"\
                         "target=${EQ_ISCSI_TARGET},lun=${EQ_BOOT_LUN},node-name=boot,"\
-                        "cache.no-flush=off,cache.direct=on,read-only=off -device ${scsi_device_type},"\
-                        "bus=${controller}0.0,id=disk_boot,drive=boot${boot_index}")
+                        "cache.no-flush=off,cache.direct=on,read-only=off -device ${EQ_SCSI_DEVICE_TYPE},"\
+                        "bus=${EQ_CONTROLLER}0.0,id=disk_boot,drive=boot${boot_index}")
             else
                 EQ_BLOCK_DEVS=$(printf %s "${EQ_BLOCK_DEVS} -blockdev driver=iscsi,transport=tcp,"\
                         "portal=${EQ_ISCSI_PORTAL_IP}:3260,initiator-name=${iscsi_initiator},"\
                         "target=${EQ_ISCSI_TARGET},lun=${EQ_LUN_ARRAY[lun]},node-name=data${lun},"\
                         "cache.no-flush=off,cache.direct=on,read-only=off "\
-                        "-device ${scsi_device_type},bus=${controller}0.0,id=disk${lun},"\
+                        "-device ${EQ_SCSI_DEVICE_TYPE},bus=${EQ_CONTROLLER}0.0,id=disk${lun},"\
                         "drive=data${lun}")   
             fi
         else
@@ -509,24 +510,23 @@ set_scsi_disks()
             if [[ "${counter}" -eq 1 ]]; then
                 EQ_SCSI_DRIVES=$(printf %s "-drive "\
                             "file=iscsi://${EQ_ISCSI_PORTAL_IP}/${EQ_ISCSI_TARGET}/${EQ_BOOT_LUN},"\
-                            "format=raw,if=none,id=drive_boot -device ${scsi_device_type},"\
-                            "id=boot_image,drive=drive_boot,bus=${controller}0.0${boot_index}")
+                            "format=raw,if=none,id=drive_boot -device ${EQ_SCSI_DEVICE_TYPE},"\
+                            "id=boot_image,drive=drive_boot,bus=${EQ_CONTROLLER}0.0${boot_index}")
             else
                 EQ_SCSI_DRIVES=$(printf %s "${EQ_SCSI_DRIVES} "\
                             "-drive file=iscsi://${EQ_ISCSI_PORTAL_IP}/${EQ_ISCSI_TARGET}/${EQ_LUN_ARRAY[${lun}]},"\
-                            "format=raw,if=none,id=drive_image${lun} -device ${scsi_device_type},"\
-                            "id=image${lun},drive=drive_image${lun},bus=${controller}0.0")
+                            "format=raw,if=none,id=drive_image${lun} -device ${EQ_SCSI_DEVICE_TYPE},"\
+                            "id=image${lun},drive=drive_image${lun},bus=${EQ_CONTROLLER}0.0")
             fi        
         fi
         counter=$((counter+1)) 
     done
-    (( num_data_luns = ${#EQ_LUN_ARRAY[@]} - 1 ))
     [[ "${EQ_INSTALL}" == "true" ]] && local data_lun_info="" || \
-                        data_lun_info="with ${num_data_luns} data LUNs attached."
+                        data_lun_info="with ${#EQ_LUN_ARRAY[@]} data LUNs attached."
     echo -e "\e[32mLAUNCHING VM - Booting from LUN #${EQ_BOOT_LUN} ${data_lun_info}.\e[39m"
-    echo "iScsi portal: ${iscsi_portal}"
-    echo "iScsi target: ${iscsi_target}"
-    echo -e "iScsi initiator: ${iscsi_initiator}\n"
+    echo "iScsi portal: ${EQ_ISCSI_PORTAL_IP}"
+    echo "iScsi target: ${EQ_ISCSI_TARGET}"
+    echo -e "iScsi initiator: ${EQ_ISCSI_INITIATOR}\n"
 }
 
 set_local_disk()
@@ -538,7 +538,7 @@ set_local_disk()
             local_disk="-hda ${EQ_CUSTOM_IMAGE} -boot order=c,menu=on"
         fi
     elif [ "${local_disk_type}" == "virtio-scsi" ]; then
-        local_disk="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=virtscsi_disk,media=disk -device scsi-hd,drive=virtscsi_disk,bus=${controller}0.0,id=local_disk0,bootindex=0"
+        local_disk="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=virtscsi_disk,media=disk -device scsi-hd,drive=virtscsi_disk,bus=${EQ_CONTROLLER}0.0,id=local_disk0,bootindex=0"
     elif [ "${local_disk_type}" == "virtio-blk" ]; then
         local_disk="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=virtblk_disk,media=disk -device virtio-blk-pci,drive=virtblk_disk,id=local_disk0,bootindex=0"
     else
@@ -738,11 +738,11 @@ copy_edk2_files
 
 if [[ "${EQ_INSTALL}" == "true" ]]; then
     get_iso
-    EQ_BLOCK_DEVS=$(printf %s"-blockdev driver=iscsi,transport=tcp,"\
+    EQ_BLOCK_DEVS=$(printf %s "-blockdev driver=iscsi,transport=tcp,"\
             "portal=${EQ_ISCSI_PORTAL_IP}:3260,initiator-name=${EQ_ISCSI_INITIATOR},"\
             "target=${EQ_ISCSI_TARGET},lun=${EQ_BOOT_LUN},node-name=oci-bm-iscsi,"\
             "cache.no-flush=off,cache.direct=on,read-only=off "\
-            "-device ${scsi_device_type},bus=${controller}0.0,id=disk1,drive=oci-bm-iscsi")
+            "-device ${EQ_SCSI_DEVICE_TYPE},bus=${EQ_CONTROLLER}0.0,id=disk1,drive=oci-bm-iscsi")
     cdrom="-cdrom ${EQ_ISO} -boot d"
     if [[ ("${mode}" == "local") && ( ! -z "${EQ_CUSTOM_IMAGE}" ) ]]
     then
