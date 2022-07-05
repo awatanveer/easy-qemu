@@ -24,15 +24,13 @@ EQ_SCSI_DEVICE_TYPE="scsi-block"
 EQ_CONTROLLER=""
 EQ_LOCAL_DISK_PARAM=""
 EQ_LOCAL_DISK_TYPE="ide"
+EQ_NIC_MODEL=""
+EQ_PCI_BUS=""
+EQ_ROM_FILE=""
 
-
-
-nic_model="e1000"
-nic_model_set=false
 ubuntu=false
 ubuntu_host=false
 centos=false
-pci_bus=""
 boot_lun=3
 initial_lun=7
 end_lun=13
@@ -134,7 +132,7 @@ usage()
     echo "-g                VGA type (default: std)"
     echo "-n                [ macvtap_name | vf ] 
                   Network mode. Macvtap device or vfio-pci device.  (default: No network device)"
-    echo "-N                NIC model. Use qemu-system-<arch> -nic model=help to get the list. (default: e1000)"
+    echo "-N                NIC model e.g. e1000. Use qemu-system-<arch> -nic model=help to get the list."
     echo "-b                PCI bus id. Required if -n is set to \"vf\"."
     echo "-B                blockdev iscsi mode."
     echo "-s                Add telnet serial console on the chosen local port. Requires port number. (default: 3333)"
@@ -221,8 +219,8 @@ get_options()
                         ;;
                     ipxe)
                         val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                        rom_file=${val}
-                        ipxe=true
+                        EQ_ROM_FILE=${val}
+                        EQ_IPXE=true
                         ;;
                     big-vm)
                         cpu="-cpu host,+host-phys-bits"
@@ -277,7 +275,7 @@ get_options()
                 fi
                 ;;
             b)
-               pci_bus=${OPTARG}
+               EQ_PCI_BUS=${OPTARG}
                ;;
             g)
                vga="-vga ${OPTARG}"
@@ -301,8 +299,7 @@ get_options()
                 fi
                 ;;
             N)
-                nic_model=${OPTARG}
-                nic_model_set=true
+                EQ_NIC_MODEL=${OPTARG}
                 ;;
             S)
                 iscsi_info=${OPTARG}
@@ -399,7 +396,7 @@ set_defaults()
     usb_mouse=""
     daemonize=""
     ihc9=""
-    ipxe=false
+    EQ_IPXE=false
     debug_con=""
     # Architecture specific settings
     if [ "${EQ_ARCH}" == "x86_64" ]; 
@@ -573,30 +570,36 @@ start_tpm()
 set_network()
 {
     if [ "${EQ_NETWORK}" == "vf" ]; then
-        if [[ -z "${pci_bus}" ]]; then
+        if [[ -z "${EQ_PCI_BUS}" ]]; then
             echo -e "\n-n flag requires -b flag.\n"
             exit 1
         fi
-        net="-net none -device vfio-pci,host=${pci_bus}"
-        if "$ipxe" ; then
-            net="-device vfio-pci,host=${pci_bus},id=ipxe-nic,romfile=${rom_file} -boot n"
-            if [ "$ARCH" = "aarch64"  ]; then
-                net="-device pcie-root-port,id=root,slot=0 -device vfio-pci,host=${pci_bus},id=ipxe-nic,romfile=${rom_file} -boot n"
+        net="-net none -device vfio-pci,host=${EQ_PCI_BUS}"
+        if [[ "${EQ_IPXE}" == "true" ]]; then
+            net=$(printf %s "-device vfio-pci,host=${EQ_PCI_BUS},id=ipxe-nic,"\
+                "romfile=${EQ_ROM_FILE} -boot n")
+            if [[ "$ARCH" == "aarch64"  ]]; then
+                net=$(printf %s "-device pcie-root-port,id=root,slot=0 "\
+                    "-device vfio-pci,host=${EQ_PCI_BUS},id=ipxe-nic," 
+                    "romfile=${EQ_ROM_FILE} -boot n")
             fi
         fi
     elif [[ "${EQ_NETWORK}" == "macvtap"* ]]; then
-        ipxe_param=''
-        if "$ipxe" ; then
-            ipxe_param=",romfile=${rom_file}"
+        local ipxe_param=''
+        if [[ "${EQ_IPXE}" == "true" ]]; then
+            ipxe_param=",romfile=${EQ_ROM_FILE}"
         fi
         if "$sev" ; then
             ipxe_param=",romfile=''"
         fi
-        net="-netdev tap,id=${EQ_NETWORK},fd=3 3<>/dev/tap$(< /sys/class/net/${EQ_NETWORK}/ifindex) \
-        -device virtio-net-pci,mac=$(< /sys/class/net/${EQ_NETWORK}/address),id=virtio-net-pci0,vectors=482,mq=on,netdev=${EQ_NETWORK}${ipxe_param}${iommu_plat}"
-        if "$nic_model_set" ; then 
-            net="-net nic,model=${nic_model},macaddr=$(cat /sys/class/net/${EQ_NETWORK}/address) \
-            -net tap,fd=3 3<>/dev/tap$(cat /sys/class/net/${EQ_NETWORK}/ifindex)"
+        net=$(printf %s "-netdev tap,"\
+            "id=${EQ_NETWORK},fd=3 3<>/dev/tap$(< /sys/class/net/${EQ_NETWORK}/ifindex) "\
+            "-device virtio-net-pci,mac=$(< /sys/class/net/${EQ_NETWORK}/address),"\
+            "id=virtio-net-pci0,vectors=482,mq=on,netdev=${EQ_NETWORK}${ipxe_param}${iommu_plat}")
+        if [[ -n "${EQ_NIC_MODEL}" ]]; then 
+            net=$(printf %s "-net nic,model=${EQ_NIC_MODEL},"\
+                "macaddr=$(cat /sys/class/net/${EQ_NETWORK}/address) "\
+                "-net tap,fd=3 3<>/dev/tap$(cat /sys/class/net/${EQ_NETWORK}/ifindex)")
         fi
     elif [[ "${EQ_NETWORK}" == "user" ]]; then
         net="-net nic -net user,id=net0,hostfwd=tcp::2222-:22"
@@ -686,7 +689,7 @@ copy_edk2_files()
 
 ipxe_settings()
 {
-    if "$ipxe" ; then
+    if [[ "${EQ_IPXE}" == "true" ]]; then
         ahci="" 
         EQ_LOCAL_DISK_PARAM=""
         EQ_BLOCK_DEVS=""
