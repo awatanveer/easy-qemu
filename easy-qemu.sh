@@ -485,7 +485,8 @@ get_iso()
 
 set_scsi_disks() 
 {
-    [[ "${EQ_ISCSI_BOOT}" == "true" ]] && boot_index=",bootindex=0" || boot_index=""
+    local boot_index=""
+    [[ "${EQ_ISCSI_BOOT}" == "true" ]] && boot_index=",bootindex=0"
     local counter=1
     for lun in "${EQ_LUN_ARRAY[@]}"; do 
         if [[ "${EQ_SCSI_DRIVE_MODE}" == "false" ]]; then
