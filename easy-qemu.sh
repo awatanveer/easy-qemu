@@ -21,6 +21,7 @@ EQ_BLOCK_DEVS=""
 EQ_SCSI_DRIVES=""
 EQ_SCSI_DEVICE_TYPE="scsi-block"
 EQ_CONTROLLER=""
+EQ_LOCAL_DISK_PARAM=""
 EQ_LOCAL_DISK_TYPE="ide"
 
 
@@ -35,7 +36,6 @@ boot_lun=3
 initial_lun=7
 end_lun=13
 
-local_disk=""
 telnet_port=4444
 mode="local"
 tpm=false
@@ -533,20 +533,25 @@ set_scsi_disks()
 set_local_disk()
 {
     if [[ "${EQ_LOCAL_DISK_TYPE}" == "ide" ]]; then
-        local_disk="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=local_disk0,media=disk -device ide-hd,drive=local_disk0,id=local_disk1,bootindex=0"
+        EQ_LOCAL_DISK_PARAM=$(printf %s "-drive file=${EQ_CUSTOM_IMAGE},if=none,"\
+                            "id=local_disk0,media=disk -device ide-hd,drive=local_disk0,"\
+                            "id=local_disk1,bootindex=0")
         if [ "${EQ_ARCH}" == "aarch64" ]; 
         then
-            local_disk="-hda ${EQ_CUSTOM_IMAGE} -boot order=c,menu=on"
+            EQ_LOCAL_DISK_PARAM="-hda ${EQ_CUSTOM_IMAGE} -boot order=c,menu=on"
         fi
     elif [[ "${EQ_LOCAL_DISK_TYPE}" == "virtio-scsi" ]]; then
-        local_disk="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=virtscsi_disk,media=disk -device scsi-hd,drive=virtscsi_disk,bus=${EQ_CONTROLLER}0.0,id=local_disk0,bootindex=0"
+        EQ_LOCAL_DISK_PARAM=$(printf %s "-drive file=${EQ_CUSTOM_IMAGE},if=none,id=virtscsi_disk,"\
+                            "media=disk -device scsi-hd,drive=virtscsi_disk,"\
+                            "bus=${EQ_CONTROLLER}0.0,id=local_disk0,bootindex=0")
     elif [[ "${EQ_LOCAL_DISK_TYPE}" == "virtio-blk" ]]; then
-        local_disk="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=virtblk_disk,media=disk -device virtio-blk-pci,drive=virtblk_disk,id=local_disk0,bootindex=0"
+        EQ_LOCAL_DISK_PARAM=$(printf %s "-drive file=${EQ_CUSTOM_IMAGE},if=none,id=virtblk_disk,"\
+                            "media=disk -device virtio-blk-pci,drive=virtblk_disk,"\
+                            "id=local_disk0,bootindex=0")
     else
         echo -e "\e[31m${EQ_LOCAL_DISK_TYPE} is invalid storage device type for -d \n\e[39m"
         exit 1 
     fi
-    
     echo -e "Using ${EQ_CUSTOM_IMAGE} image to boot from disk."
 }
 
@@ -631,7 +636,7 @@ qemu_cmd_to_file()
     content="${content}${edk2_drives} \\\\\n"
     [[ ! -z  $virtio_device  ]] && content="${content}${virtio_device} \\\\\n"
     [[ ! -z  $ahci  ]] && content="${content}${ahci} \\\\\n"
-    [[ ! -z  $local_disk  ]] && content="${content}${local_disk} \\\\\n"
+    [[ ! -z  ${EQ_LOCAL_DISK_PARAM}  ]] && content="${content}${EQ_LOCAL_DISK_PARAM} \\\\\n"
     [[ ! -z  ${EQ_BLOCK_DEVS}  ]] && content="${content}${EQ_BLOCK_DEVS} \\\\\n"
     [[ ! -z  ${iscsi_initiator_val}  ]] && content="${content}${iscsi_initiator_val} \\\\\n"
     [[ ! -z  ${EQ_SCSI_DRIVES}  ]] && content="${content}${EQ_SCSI_DRIVES} \\\\\n"
@@ -684,7 +689,7 @@ ipxe_settings()
 {
     if "$ipxe" ; then
         ahci="" 
-        local_disk=""
+        EQ_LOCAL_DISK_PARAM=""
         EQ_BLOCK_DEVS=""
         EQ_SCSI_DRIVES=""   
     fi
@@ -694,7 +699,7 @@ pre_launch_mode_settings()
 {
     virtio_device=''
     ahci="" 
-    local_disk=""
+    EQ_LOCAL_DISK_PARAM=""
     pcie_root_bus=''
     pre_launch_option="-S"
     if [[ "${machine}" == "-machine q35" ]]; then
@@ -763,7 +768,7 @@ ipxe_settings
 ($pl_mode) && pre_launch_mode_settings
 ($sev) && enable_sev
 
-vm_launch_cmd="${QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${virtio_device} ${ihc9} ${debug_con} ${ahci} ${local_disk} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${sev_args}"
+vm_launch_cmd="${QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${virtio_device} ${ihc9} ${debug_con} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${sev_args}"
 
 echo -e "QEMU Command:\n${vm_launch_cmd}"
 echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
