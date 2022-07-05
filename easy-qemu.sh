@@ -116,6 +116,7 @@ detect_os()
         # TODO: Detect more OSes based on the package manager
         EQ_OS="unknown"
     fi
+    echo ${EQ_OS}
 }
 
 usage()
@@ -719,7 +720,7 @@ pre_launch_mode_settings()
 
 get_c_bit()
 {
-   yum install cpuid -y -q
+   install_packages cpuid
    text=$(cpuid -r -1 -l 0x8000001f)
    search="ebx"
    prefix=${text%%$search*}
@@ -729,6 +730,29 @@ get_c_bit()
    c_bit=$(( $ebx_val & mask ))
 }
 
+install_packages()
+{
+    if [[ $# < 1 ]]; then
+        echo "install_packages: Package name not provided."
+        return 1
+    fi
+    local proxy=$(get_param_from_config PROXY)
+    local proxy_vars=""
+    if [[ -n "${proxy}" ]]; then
+        proxy_vars="http_proxy=${proxy} https_proxy=${proxy}"
+    fi
+    local packages=$1
+    local dist=$(detect_os)
+    if [[ "${dist}" == "redhat" ]]; then
+        ${proxy_vars} sudo yum install ${packages} -y -q
+    elif [[ "${dist}" == "debian" ]]; then
+        ${proxy_vars} sudo apt update -y -qq
+        ${proxy_vars} sudo apt install ${packages} -y -qq 2>/dev/null >/dev/null
+    else
+        echo "$0: OS not supported. ${packages} can not be installed."
+        return 1
+    fi
+}
 
 enable_sev()
 {
