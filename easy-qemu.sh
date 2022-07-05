@@ -29,6 +29,7 @@ EQ_PCI_BUS=""
 EQ_ROM_FILE=""
 EQ_SEV=false
 EQ_SEV_ARGS=""
+EQ_IOMMU_PLAT=''
 
 ubuntu=false
 ubuntu_host=false
@@ -45,7 +46,7 @@ pcie_root_ports=10
 pcie_root_devices=''
 pl_mode=false
 pre_launch_option=''
-iommu_plat=''
+
 fips=false
 
 get_param_from_config()
@@ -246,7 +247,7 @@ get_options()
                     sev)
                         EQ_SEV=true
                         cpu="-cpu host,+host-phys-bits"
-                        iommu_plat=",disable-legacy=on,iommu_platform=true"
+                        EQ_IOMMU_PLAT=",disable-legacy=on,iommu_platform=true"
                         ;;
                     cos)
                         centos=true
@@ -326,7 +327,7 @@ get_options()
                 ;;
             c)
                 EQ_CONTROLLER=${OPTARG}
-                virtio_device="-device ${EQ_CONTROLLER},id=${EQ_CONTROLLER}0"
+                EQ_VIRTIO_DEVICE="-device ${EQ_CONTROLLER},id=${EQ_CONTROLLER}0"
                 ;;
             d)
                 EQ_LOCAL_BOOT=true
@@ -393,7 +394,7 @@ set_defaults()
     qmp_sock="-qmp tcp:127.0.0.1:3334,server,nowait"
     serial="-serial telnet:127.0.0.1:3333,server,nowait"
     EQ_CONTROLLER="virtio-scsi-pci"
-    virtio_device="-device virtio-scsi-pci,id=virtio-scsi-pci0"
+    EQ_VIRTIO_DEVICE="-device virtio-scsi-pci,id=virtio-scsi-pci0"
     log_file="-D ./OL${EQ_OS_VERSION}-uefi.log"
     usb_mouse=""
     daemonize=""
@@ -597,7 +598,7 @@ set_network()
         net=$(printf %s "-netdev tap,"\
             "id=${EQ_NETWORK},fd=3 3<>/dev/tap$(< /sys/class/net/${EQ_NETWORK}/ifindex) "\
             "-device virtio-net-pci,mac=$(< /sys/class/net/${EQ_NETWORK}/address),"\
-            "id=virtio-net-pci0,vectors=482,mq=on,netdev=${EQ_NETWORK}${ipxe_param}${iommu_plat}")
+            "id=virtio-net-pci0,vectors=482,mq=on,netdev=${EQ_NETWORK}${ipxe_param}${EQ_IOMMU_PLAT}")
         if [[ -n "${EQ_NIC_MODEL}" ]]; then 
             net=$(printf %s "-net nic,model=${EQ_NIC_MODEL},"\
                 "macaddr=$(cat /sys/class/net/${EQ_NETWORK}/address) "\
@@ -638,7 +639,7 @@ qemu_cmd_to_file()
     content="${content}${vnc} \\\\\n"
     content="${content}${vga} \\\\\n"
     content="${content}${edk2_drives} \\\\\n"
-    [[ ! -z  $virtio_device  ]] && content="${content}${virtio_device} \\\\\n"
+    [[ ! -z  ${EQ_VIRTIO_DEVICE}  ]] && content="${content}${EQ_VIRTIO_DEVICE} \\\\\n"
     [[ ! -z  $ahci  ]] && content="${content}${ahci} \\\\\n"
     [[ ! -z  ${EQ_LOCAL_DISK_PARAM}  ]] && content="${content}${EQ_LOCAL_DISK_PARAM} \\\\\n"
     [[ ! -z  ${EQ_BLOCK_DEVS}  ]] && content="${content}${EQ_BLOCK_DEVS} \\\\\n"
@@ -701,7 +702,7 @@ ipxe_settings()
 
 pre_launch_mode_settings()
 {
-    virtio_device=''
+    EQ_VIRTIO_DEVICE=''
     ahci="" 
     EQ_LOCAL_DISK_PARAM=""
     pcie_root_bus=''
@@ -713,7 +714,7 @@ pre_launch_mode_settings()
     
     echo "Qemu starting in prelaunch mode. Use following disk hotplug commands to start the guest:"
     echo "(qemu) drive_add auto file=${EQ_CUSTOM_IMAGE},id=drive2,aio=threads,cache=writeback,if=none"
-    echo "(qemu) device_add virtio-scsi-pci,id=virtio-scsi-pci2${pcie_root_bus}${iommu_plat}"
+    echo "(qemu) device_add virtio-scsi-pci,id=virtio-scsi-pci2${pcie_root_bus}${EQ_IOMMU_PLAT}"
     echo "(qemu) device_add scsi-hd,id=scsi-hd2,drive=drive2"
     echo "(qemu) c"
 }
@@ -721,13 +722,13 @@ pre_launch_mode_settings()
 get_c_bit()
 {
    install_packages cpuid
-   text=$(cpuid -r -1 -l 0x8000001f)
-   search="ebx"
-   prefix=${text%%$search*}
-   ebx_index=$((${#prefix} + 4))
-   ebx_val=${text:${ebx_index}:10}
-   mask=$(( (1 << 6) -1 ))
-   c_bit=$(( $ebx_val & mask ))
+   local text=$(cpuid -r -1 -l 0x8000001f)
+   local search="ebx"
+   local prefix=${text%%$search*}
+   local ebx_index=$((${#prefix} + 4))
+   local ebx_val=${text:${ebx_index}:10}
+   local mask=$(( (1 << 6) -1 ))
+   echo $(( $ebx_val & mask ))
 }
 
 install_packages()
@@ -746,7 +747,7 @@ install_packages()
     if [[ "${dist}" == "redhat" ]]; then
         ${proxy_vars} sudo yum install ${packages} -y -q
     elif [[ "${dist}" == "debian" ]]; then
-        ${proxy_vars} sudo apt update -y -qq
+        ${proxy_vars} sudo apt update -y -qq 2>/dev/null >/dev/null
         ${proxy_vars} sudo apt install ${packages} -y -qq 2>/dev/null >/dev/null
     else
         echo "$0: OS not supported. ${packages} can not be installed."
@@ -756,11 +757,10 @@ install_packages()
 
 enable_sev()
 {
-    get_c_bit
-    EQ_SEV_ARGS=$(printf %s "-device virtio-rng-pci,disable-legacy=on,"
-                "iommu_platform=true -object sev-guest,id=sev0,cbitpos=${c_bit},"\
+    EQ_SEV_ARGS=$(printf %s "-device virtio-rng-pci,disable-legacy=on,"\
+                "iommu_platform=true -object sev-guest,id=sev0,cbitpos=$(get_c_bit),"\
                 "reduced-phys-bits=1 -machine memory-encryption=sev0")
-    virtio_device="-device virtio-scsi-pci,id=virtio-scsi-pci0${iommu_plat}"
+    EQ_VIRTIO_DEVICE="-device virtio-scsi-pci,id=virtio-scsi-pci0${EQ_IOMMU_PLAT}"
 }
 
 set_defaults
@@ -796,7 +796,7 @@ ipxe_settings
 ($pl_mode) && pre_launch_mode_settings
 [[ "${EQ_SEV}"  == "true" ]] && enable_sev
 
-vm_launch_cmd="${EQ_QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${virtio_device} ${ihc9} ${debug_con} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${EQ_SEV_ARGS}"
+vm_launch_cmd="${EQ_QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${EQ_VIRTIO_DEVICE} ${ihc9} ${debug_con} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${EQ_SEV_ARGS}"
 
 echo -e "QEMU Command:\n${vm_launch_cmd}"
 echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
