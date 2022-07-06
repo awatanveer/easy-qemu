@@ -34,9 +34,10 @@ EQ_LAUNCH_MODE="local"
 EQ_TPM=false
 EQ_TPM_CMD=""
 EQ_FIPS=false
+EQ_PCIE_ROOT_PORTS=0
+EQ_PCIE_PORTS_OFFSET=5
+EQ_PCIE_ROOT_DEVICES=""
 
-pcie_root_ports=10
-pcie_root_devices=''
 pl_mode=false
 pre_launch_option=''
 
@@ -199,7 +200,7 @@ get_options()
                         ;;
                     machine)
                         val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                        machine="-machine ${val}"; 
+                        EQ_MACHINE="-machine ${val}"; 
                         ;;        
                     secboot)
                         secure_boot=true
@@ -218,7 +219,7 @@ get_options()
                         ;;       
                     pcie-root)
                         val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                        pcie_root_ports=val
+                        EQ_PCIE_ROOT_PORTS=val
                         add_pcie_root_ports_devices
                         ;; 
                     pl)
@@ -379,13 +380,13 @@ set_defaults()
     EQ_IPXE=false
     EQ_DEBUG_CON=""
     # Architecture specific settings
-    if [ "${EQ_ARCH}" == "x86_64" ]; 
+    if [[ "${EQ_ARCH}" == "x86_64" ]]; 
     then 
-        machine="-machine pc,accel=kvm"; 
+        EQ_MACHINE="-machine pc,accel=kvm"; 
         vga="-vga std"
         ahci=""
     else 
-        machine="-machine virt,accel=kvm,gic-version=3"; 
+        EQ_MACHINE="-machine virt,accel=kvm,gic-version=3"; 
         vga="-device virtio-gpu-pci -device usb-ehci -device usb-kbd -device usb-mouse"
         ahci="-device ahci,id=ahci0"
     fi
@@ -602,12 +603,14 @@ set_network()
 
 add_pcie_root_ports_devices()
 {
-    if [[ "${machine}" == "-machine q35" || "${machine}" == "-machine virt,accel=kvm,gic-version=3" ]]; then
-        echo "${machine}"
-        range=$((pcie_root_ports + 5))
-        for ((i=5;i<range;i++)); do
+    if [[ "${EQ_MACHINE}" == "-machine q35" || \
+    "${EQ_MACHINE}" == "-machine virt,accel=kvm,gic-version=3" ]]; then
+        echo "${EQ_MACHINE}"
+        local range=$((EQ_PCIE_ROOT_PORTS + EQ_PCIE_PORTS_OFFSET))
+        for ((i=EQ_PCIE_PORTS_OFFSET;i<range;i++)); do
             addr=$( printf "%x" ${i} )
-            pcie_root_devices="${pcie_root_devices} -device pcie-root-port,port=${i},chassis=${i},id=pciroot${i},bus=pcie.0,addr=0x${addr}"
+            EQ_PCIE_ROOT_DEVICES=$(printf %s "${EQ_PCIE_ROOT_DEVICES} -device pcie-root-port,port=${i},"\
+                                 "chassis=${i},id=pciroot${i},bus=pcie.0,addr=0x${addr}")
         done
     fi
 }
@@ -616,7 +619,7 @@ qemu_cmd_to_file()
 {
     content='#!/bin/bash\n\n'
     content="${content}${EQ_QEMU_CMD} ${name} \\\\\n"
-    content="${content}${machine} \\\\\n"
+    content="${content}${EQ_MACHINE} \\\\\n"
     content="${content}-enable-kvm \\\\\n"
     content="${content}${cpu} \\\\\n"
     content="${content}${memory} \\\\\n"
@@ -633,7 +636,7 @@ qemu_cmd_to_file()
     [[ ! -z  ${EQ_BLOCK_DEVS}  ]] && content="${content}${EQ_BLOCK_DEVS} \\\\\n"
     [[ ! -z  ${iscsi_initiator_val}  ]] && content="${content}${iscsi_initiator_val} \\\\\n"
     [[ ! -z  ${EQ_SCSI_DRIVES}  ]] && content="${content}${EQ_SCSI_DRIVES} \\\\\n"
-    [[ ! -z  $pcie_root_devices  ]] && content="${content}${pcie_root_devices} \\\\\n"
+    [[ ! -z  ${EQ_PCIE_ROOT_DEVICES}  ]] && content="${content}${EQ_PCIE_ROOT_DEVICES} \\\\\n"
     [[ ! -z  $cdrom  ]] && content="${content}${cdrom} \\\\\n"
     [[ ! -z  $net  ]] && content="${content}${net} \\\\\n"
     [[ ! -z  $ihc9  ]] && content="${content}${ihc9} \\\\\n"
@@ -695,8 +698,9 @@ pre_launch_mode_settings()
     EQ_LOCAL_DISK_PARAM=""
     pcie_root_bus=''
     pre_launch_option="-S"
-    if [[ "${machine}" == "-machine q35" ]]; then
-        pcie_root_devices="${pcie_root_devices} -device pcie-root-port,port=4,chassis=4,id=pciroot4,bus=pcie.0,addr=0x4"
+    if [[ "${EQ_MACHINE}" == "-machine q35" ]]; then
+        EQ_PCIE_ROOT_DEVICES=$(printf %s "${EQ_PCIE_ROOT_DEVICES} -device pcie-root-port,"\
+        "port=4,chassis=4,id=pciroot4,bus=pcie.0,addr=0x4")
         pcie_root_bus=",bus=pciroot4"
     fi
     
@@ -784,7 +788,7 @@ ipxe_settings
 ($pl_mode) && pre_launch_mode_settings
 [[ "${EQ_SEV}"  == "true" ]] && enable_sev
 
-vm_launch_cmd="${EQ_QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${EQ_VIRTIO_DEVICE} ${ihc9} ${EQ_DEBUG_CON} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${EQ_TPM_CMD} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${EQ_SEV_ARGS}"
+vm_launch_cmd="${EQ_QEMU_CMD} ${EQ_MACHINE} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${EQ_VIRTIO_DEVICE} ${ihc9} ${EQ_DEBUG_CON} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${EQ_PCIE_ROOT_DEVICES} ${cdrom} ${net} ${qmp_sock} ${serial} ${EQ_TPM_CMD} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${EQ_SEV_ARGS}"
 
 echo -e "QEMU Command:\n${vm_launch_cmd}"
 echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
