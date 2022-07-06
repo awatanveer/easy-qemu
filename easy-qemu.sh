@@ -605,10 +605,9 @@ add_pcie_root_ports_devices()
 {
     if [[ "${EQ_MACHINE}" == "-machine q35" || \
     "${EQ_MACHINE}" == "-machine virt,accel=kvm,gic-version=3" ]]; then
-        echo "${EQ_MACHINE}"
         local range=$((EQ_PCIE_ROOT_PORTS + EQ_PCIE_PORTS_OFFSET))
         for ((i=EQ_PCIE_PORTS_OFFSET;i<range;i++)); do
-            addr=$( printf "%x" ${i} )
+            local addr=$( printf "%x" ${i} )
             EQ_PCIE_ROOT_DEVICES=$(printf %s "${EQ_PCIE_ROOT_DEVICES} -device pcie-root-port,port=${i},"\
                                  "chassis=${i},id=pciroot${i},bus=pcie.0,addr=0x${addr}")
         done
