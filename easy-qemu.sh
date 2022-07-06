@@ -186,16 +186,16 @@ get_options()
                         fi
                         ;;
                     stdio)
-                       monitor="-display none -serial stdio"
-                       serial=""
+                       EQ_MONITOR="-display none -serial stdio"
+                       EQ_SERIAL=""
                        ;;
                     log)
                         val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                        log_file="-D ${val}"
+                        EQ_LOG_FILE="-D ${val}"
                         ;;
                     bg)
-                        daemonize="-daemonize"
-                        monitor=""
+                        EQ_DAEMONIZE="-daemonize"
+                        EQ_MONITOR=""
                         ;;
                     machine)
                         val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
@@ -213,8 +213,8 @@ get_options()
                         EQ_IPXE=true
                         ;;
                     big-vm)
-                        cpu="-cpu host,+host-phys-bits"
-                        memory="-m 1.2T"
+                        EQ_CPU="-cpu host,+host-phys-bits"
+                        EQ_MEMORY="-m 1.2T"
                         ;;       
                     pcie-root)
                         val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
@@ -225,14 +225,14 @@ get_options()
                         EQ_PRE_LAUNCH_MODE=true
                         ;;               
                     usb)
-                        usb_mouse="-usb -device usb-tablet,id=tablet1"
+                        EQ_USB_MOUSE="-usb -device usb-tablet,id=tablet1"
                         ;;  
                     fips)
                         EQ_FIPS=true
                         ;;
                     sev)
                         EQ_SEV=true
-                        cpu="-cpu host,+host-phys-bits"
+                        EQ_CPU="-cpu host,+host-phys-bits"
                         EQ_IOMMU_PLAT=",disable-legacy=on,iommu_platform=true"
                         ;;
                    *)
@@ -241,12 +241,12 @@ get_options()
                       ;;
                 esac;;
             a)
-                add_args=${OPTARG}
+                EQ_ADDITIONAL_ARGS=${OPTARG}
                 ;;
             o)
                 EQ_OS_VERSION=${OPTARG}
-                name="-name OL${EQ_OS_VERSION}-uefi"
-                log_file="-D ./OL${EQ_OS_VERSION}-uefi.log"
+                EQ_VM_NAME="-name ${EQ_OS_VERSION}-uefi"
+                EQ_LOG_FILE="-D ./${EQ_OS_VERSION}-uefi.log"
                 ;;
             O)
                 EQ_CUSTOM_IMAGE=${OPTARG}
@@ -264,15 +264,15 @@ get_options()
                EQ_PCI_BUS=${OPTARG}
                ;;
             g)
-               vga="-vga ${OPTARG}"
+               EQ_VGA="-vga ${OPTARG}"
                ;;
             q)
                # check if it is not a number i.e. port number
                re='^[0-9]+$' 
                if ! [[ $OPTARG =~ $re ]] ; then
-                    qmp_sock="-qmp unix:${OPTARG},server,nowait" # unix socket
+                    EQ_QMP_SOCK="-qmp unix:${OPTARG},server,nowait" # unix socket
                else
-                    qmp_sock="-qmp tcp:127.0.0.1:${OPTARG},server,nowait"
+                    EQ_QMP_SOCK="-qmp tcp:127.0.0.1:${OPTARG},server,nowait"
                fi
                ;;
             n)
@@ -303,10 +303,10 @@ get_options()
                 EQ_SCSI_DRIVE_MODE=false
                 ;;
             D)
-                no_defaults=""
+                EQ_NO_DEFAULTS=""
                 ;;
             C)
-                cpu="-cpu ${OPTARG}"
+                EQ_CPU="-cpu ${OPTARG}"
                 ;;
             c)
                 EQ_CONTROLLER=${OPTARG}
@@ -325,16 +325,16 @@ get_options()
                 fi
                 ;;
             M)
-                memory="-m ${OPTARG}"
+                EQ_MEMORY="-m ${OPTARG}"
                 ;;
             P)
-                smp="-smp ${OPTARG}"
+                EQ_SMP="-smp ${OPTARG}"
                 ;;
             s)
-                serial="-serial telnet:127.0.0.1:${OPTARG},server,nowait"
+                EQ_SERIAL="-serial telnet:127.0.0.1:${OPTARG},server,nowait"
                 ;;
             v)
-               vnc="-vnc :${OPTARG}"
+               EQ_VNC="-vnc :${OPTARG}"
                ;;
             T)
                EQ_TPM=true
@@ -358,36 +358,36 @@ set_defaults()
     EQ_ISCSI_PORTAL_IP=$(get_param_from_config ISCSI_PORTAL_IP)
     EQ_ISCSI_TARGET=$(get_param_from_config ISCSI_TARGET)
     EQ_ISCSI_INITIATOR=$(get_param_from_config ISCSI_INITIATOR)
-    add_args=""
+    EQ_ADDITIONAL_ARGS=""
     secure_boot=false
     secure_boot_debug=false
-    name="-name OL${EQ_OS_VERSION}-uefi"
-    cpu="-cpu host"
-    no_defaults="-nodefaults"
-    memory="-m 8G"
-    smp="-smp 8,maxcpus=240"
-    monitor="-monitor stdio"
-    vnc="-vnc 0.0.0.0:0,to=999"
-    qmp_sock="-qmp tcp:127.0.0.1:3334,server,nowait"
-    serial="-serial telnet:127.0.0.1:3333,server,nowait"
+    EQ_VM_NAME="-name ${EQ_OS_VERSION}-uefi"
+    EQ_CPU="-cpu host"
+    EQ_NO_DEFAULTS="-nodefaults"
+    EQ_MEMORY="-m 8G"
+    EQ_SMP="-smp 8,maxcpus=240"
+    EQ_MONITOR="-monitor stdio"
+    EQ_VNC="-vnc 0.0.0.0:0,to=999"
+    EQ_QMP_SOCK="-qmp tcp:127.0.0.1:3334,server,nowait"
+    EQ_SERIAL="-serial telnet:127.0.0.1:3333,server,nowait"
     EQ_CONTROLLER="virtio-scsi-pci"
     EQ_VIRTIO_DEVICE="-device virtio-scsi-pci,id=virtio-scsi-pci0"
-    log_file="-D ./OL${EQ_OS_VERSION}-uefi.log"
-    usb_mouse=""
-    daemonize=""
-    ihc9=""
+    EQ_LOG_FILE="-D ./${EQ_OS_VERSION}-uefi.log"
+    EQ_USB_MOUSE=""
+    EQ_DAEMONIZE=""
+    EQ_IHC9=""
     EQ_IPXE=false
     EQ_DEBUG_CON=""
     # Architecture specific settings
     if [[ "${EQ_ARCH}" == "x86_64" ]]; 
     then 
         EQ_MACHINE="-machine pc,accel=kvm"; 
-        vga="-vga std"
-        ahci=""
+        EQ_VGA="-vga std"
+        EQ_AHCI=""
     else 
         EQ_MACHINE="-machine virt,accel=kvm,gic-version=3"; 
-        vga="-device virtio-gpu-pci -device usb-ehci -device usb-kbd -device usb-mouse"
-        ahci="-device ahci,id=ahci0"
+        EQ_VGA="-device virtio-gpu-pci -device usb-ehci -device usb-kbd -device usb-mouse"
+        EQ_AHCI="-device ahci,id=ahci0"
     fi
 }
 
@@ -483,7 +483,7 @@ set_scsi_disks()
                         "drive=data${lun}")   
             fi
         else
-            iscsi_initiator_val="-iscsi initiator-name=${EQ_ISCSI_INITIATOR}"
+            EQ_ISCSI_INITIATOR_PARAM="-iscsi initiator-name=${EQ_ISCSI_INITIATOR}"
             if [[ "${counter}" -eq 1 ]]; then
                 EQ_SCSI_DRIVES=$(printf %s "-drive "\
                             "file=iscsi://${EQ_ISCSI_PORTAL_IP}/${EQ_ISCSI_TARGET}/${EQ_BOOT_LUN},"\
@@ -565,12 +565,12 @@ set_network()
             echo -e "\n-n flag requires -b flag.\n"
             exit 1
         fi
-        net="-net none -device vfio-pci,host=${EQ_PCI_BUS}"
+        EQ_QMEU_NET="-net none -device vfio-pci,host=${EQ_PCI_BUS}"
         if [[ "${EQ_IPXE}" == "true" ]]; then
-            net=$(printf %s "-device vfio-pci,host=${EQ_PCI_BUS},id=ipxe-nic,"\
+            EQ_QMEU_NET=$(printf %s "-device vfio-pci,host=${EQ_PCI_BUS},id=ipxe-nic,"\
                 "romfile=${EQ_ROM_FILE} -boot n")
             if [[ "$ARCH" == "aarch64"  ]]; then
-                net=$(printf %s "-device pcie-root-port,id=root,slot=0 "\
+                EQ_QMEU_NET=$(printf %s "-device pcie-root-port,id=root,slot=0 "\
                     "-device vfio-pci,host=${EQ_PCI_BUS},id=ipxe-nic," 
                     "romfile=${EQ_ROM_FILE} -boot n")
             fi
@@ -583,20 +583,19 @@ set_network()
         if [[ "${sev}" == "true" ]]; then
             ipxe_param=",romfile=''"
         fi
-        net=$(printf %s "-netdev tap,"\
+        EQ_QMEU_NET=$(printf %s "-netdev tap,"\
             "id=${EQ_NETWORK},fd=3 3<>/dev/tap$(< /sys/class/net/${EQ_NETWORK}/ifindex) "\
             "-device virtio-net-pci,mac=$(< /sys/class/net/${EQ_NETWORK}/address),"\
             "id=virtio-net-pci0,vectors=482,mq=on,netdev=${EQ_NETWORK}${ipxe_param}${EQ_IOMMU_PLAT}")
         if [[ -n "${EQ_NIC_MODEL}" ]]; then 
-            net=$(printf %s "-net nic,model=${EQ_NIC_MODEL},"\
+            EQ_QMEU_NET=$(printf %s "-net nic,model=${EQ_NIC_MODEL},"\
                 "macaddr=$(cat /sys/class/net/${EQ_NETWORK}/address) "\
                 "-net tap,fd=3 3<>/dev/tap$(cat /sys/class/net/${EQ_NETWORK}/ifindex)")
         fi
     elif [[ "${EQ_NETWORK}" == "user" ]]; then
-        net="-net nic -net user,id=net0,hostfwd=tcp::2222-:22"
+        EQ_QMEU_NET="-net nic -net user,id=net0,hostfwd=tcp::2222-:22"
     else
-        net=""
-        echo "NO NETWORK"
+        EQ_QMEU_NET=""
     fi     
 }
 
@@ -613,41 +612,47 @@ add_pcie_root_ports_devices()
     fi
 }
 
-qemu_cmd_to_file()
+qemu_command()
 {
     content='#!/bin/bash\n\n'
-    content="${content}${EQ_QEMU_CMD} ${name} \\\\\n"
+    content="${content}${EQ_QEMU_CMD} ${EQ_VM_NAME} \\\\\n"
     content="${content}${EQ_MACHINE} \\\\\n"
     content="${content}-enable-kvm \\\\\n"
-    content="${content}${cpu} \\\\\n"
-    content="${content}${memory} \\\\\n"
-    content="${content}${smp} \\\\\n"
-    content="${content}${log_file} \\\\\n"
-    [[ ! -z  $no_defaults  ]] && content="${content}${no_defaults} \\\\\n"
-    [[ ! -z  $monitor  ]] && content="${content}${monitor} \\\\\n"
-    content="${content}${vnc} \\\\\n"
-    content="${content}${vga} \\\\\n"
-    content="${content}${edk2_drives} \\\\\n"
-    [[ ! -z  ${EQ_VIRTIO_DEVICE}  ]] && content="${content}${EQ_VIRTIO_DEVICE} \\\\\n"
-    [[ ! -z  $ahci  ]] && content="${content}${ahci} \\\\\n"
-    [[ ! -z  ${EQ_LOCAL_DISK_PARAM}  ]] && content="${content}${EQ_LOCAL_DISK_PARAM} \\\\\n"
-    [[ ! -z  ${EQ_BLOCK_DEVS}  ]] && content="${content}${EQ_BLOCK_DEVS} \\\\\n"
-    [[ ! -z  ${iscsi_initiator_val}  ]] && content="${content}${iscsi_initiator_val} \\\\\n"
-    [[ ! -z  ${EQ_SCSI_DRIVES}  ]] && content="${content}${EQ_SCSI_DRIVES} \\\\\n"
-    [[ ! -z  ${EQ_PCIE_ROOT_DEVICES}  ]] && content="${content}${EQ_PCIE_ROOT_DEVICES} \\\\\n"
-    [[ ! -z  $cdrom  ]] && content="${content}${cdrom} \\\\\n"
-    [[ ! -z  $net  ]] && content="${content}${net} \\\\\n"
-    [[ ! -z  $ihc9  ]] && content="${content}${ihc9} \\\\\n"
-    [[ ! -z  $qmp_sock  ]] && content="${content}${qmp_sock} \\\\\n"
-    [[ ! -z  $serial  ]] && content="${content}${serial} \\\\\n"
-    [[ ! -z  ${EQ_TPM_CMD}  ]] && content="${content}${EQ_TPM_CMD} \\\\\n"
-    [[ ! -z  $daemonize  ]] && content="${content}${daemonize} \\\\\n" 
-    [[ ! -z  $usb_mouse  ]] && content="${content}${usb_mouse} \\\\\n"
-    [[ ! -z  $add_args  ]] && content="${content}${add_args} \\\\\n"
-    [[ ! -z  ${EQ_SEV_ARGS}  ]] && content="${content}${EQ_SEV_ARGS} \\\\\n"
+    content="${content}${EQ_CPU} \\\\\n"
+    content="${content}${EQ_MEMORY} \\\\\n"
+    content="${content}${EQ_SMP} \\\\\n"
+    content="${content}${EQ_LOG_FILE} \\\\\n"
+    [[ -n  "${EQ_NO_DEFAULTS}"  ]] && content="${content}${EQ_NO_DEFAULTS} \\\\\n"
+    [[ -n  "${EQ_MONITOR}"  ]] && content="${content}${EQ_MONITOR} \\\\\n"
+    content="${content}${EQ_VNC} \\\\\n"
+    content="${content}${EQ_VGA} \\\\\n"
+    content="${content}${EQ_EDK2_DRIVES} \\\\\n"
+    [[ -n  "${EQ_VIRTIO_DEVICE}"  ]] && content="${content}${EQ_VIRTIO_DEVICE} \\\\\n"
+    [[ -n  "${EQ_AHCI}"  ]] && content="${content}${EQ_AHCI} \\\\\n"
+    [[ -n  "${EQ_LOCAL_DISK_PARAM}"  ]] && content="${content}${EQ_LOCAL_DISK_PARAM} \\\\\n"
+    [[ -n  "${EQ_BLOCK_DEVS}"  ]] && content="${content}${EQ_BLOCK_DEVS} \\\\\n"
+    [[ -n  "${EQ_ISCSI_INITIATOR_PARAM}"  ]] && content="${content}${EQ_ISCSI_INITIATOR_PARAM} \\\\\n"
+    [[ -n  "${EQ_SCSI_DRIVES}"  ]] && content="${content}${EQ_SCSI_DRIVES} \\\\\n"
+    [[ -n  "${EQ_PCIE_ROOT_DEVICES}"  ]] && content="${content}${EQ_PCIE_ROOT_DEVICES} \\\\\n"
+    [[ -n  "${EQ_CDROM}"  ]] && content="${content}${EQ_CDROM} \\\\\n"
+    [[ -n  "${EQ_QMEU_NET}"  ]] && content="${content}${EQ_QMEU_NET} \\\\\n"
+    [[ -n  "${EQ_IHC9}"  ]] && content="${content}${EQ_IHC9} \\\\\n"
+    [[ -n  "${EQ_DEBUG_CON}"  ]] && content="${content}${EQ_DEBUG_CON} \\\\\n"
+    [[ -n  "${EQ_QMP_SOCK}"  ]] && content="${content}${EQ_QMP_SOCK} \\\\\n"
+    [[ -n  "${EQ_SERIAL}"  ]] && content="${content}${EQ_SERIAL} \\\\\n"
+    [[ -n  "${EQ_TPM_CMD}"  ]] && content="${content}${EQ_TPM_CMD} \\\\\n"
+    [[ -n  "${EQ_DAEMONIZE}"  ]] && content="${content}${EQ_DAEMONIZE} \\\\\n" 
+    [[ -n  "${EQ_USB_MOUSE}"  ]] && content="${content}${EQ_USB_MOUSE} \\\\\n"
+    [[ -n  "${EQ_ADDITIONAL_ARGS}"  ]] && content="${content}${EQ_ADDITIONAL_ARGS} \\\\\n"
+    [[ -n  "${EQ_SEV_ARGS}"  ]] && content="${content}${EQ_SEV_ARGS} \\\\\n"
+    [[ -n  "${EQ_PRE_LAUNCH_OPTION}"  ]] && content="${content}${EQ_PRE_LAUNCH_OPTION} \\\\\n"
     
-    
-    echo -e ${content} > OL${EQ_OS_VERSION}-uefi.sh
+    # Save formated command in a file
+    echo -e ${content} > ${EQ_OS_VERSION}-uefi.sh
+
+    final_cmd="${content//\\\\\\n/}"
+    final_cmd="${final_cmd//\#\!\/bin\/bash\\n\\n/}" 
+    echo $final_cmd
 }
 
 copy_edk2_files()
@@ -659,14 +664,14 @@ copy_edk2_files()
         mode=".secboot."
         if [ "${EQ_ARCH}" != "aarch64" ];
         then
-            ihc9="-global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
+            EQ_IHC9="-global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
         fi
     fi 
     if "$secure_boot_debug" ; then 
         mode="secboot-debug."
         if [ "${EQ_ARCH}" != "aarch64" ];
         then
-            ihc9="-global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
+            EQ_IHC9="-global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
             EQ_DEBUG_CON="-debugcon file:ovmf_debug.log -global isa-debugcon.iobase=0x402"
         fi
     fi
@@ -675,14 +680,15 @@ copy_edk2_files()
         ovmf_var_file="${EQ_EDK2_DIR}/OVMF_VARS.fd"
     fi 
     cp -f ${ovmf_var_file} OVMF_VARS.${EQ_OS_VERSION}
-    edk2_drives="-drive file=${EQ_EDK2_DIR}/OVMF_CODE${mode}fd,index=0,if=pflash,format=raw,readonly \
-    -drive file=OVMF_VARS.${EQ_OS_VERSION},index=1,if=pflash,format=raw"
+    EQ_EDK2_DRIVES=$(printf %s "-drive file=${EQ_EDK2_DIR}/OVMF_CODE${mode}fd,index=0,"\
+                    "if=pflash,format=raw,readonly -drive file=OVMF_VARS.${EQ_OS_VERSION},"\
+                    "index=1,if=pflash,format=raw")
 }
 
 ipxe_settings()
 {
     if [[ "${EQ_IPXE}" == "true" ]]; then
-        ahci="" 
+        EQ_AHCI="" 
         EQ_LOCAL_DISK_PARAM=""
         EQ_BLOCK_DEVS=""
         EQ_SCSI_DRIVES=""   
@@ -692,7 +698,7 @@ ipxe_settings()
 pre_launch_mode_settings()
 {
     EQ_VIRTIO_DEVICE=''
-    ahci="" 
+    EQ_AHCI="" 
     EQ_LOCAL_DISK_PARAM=""
     local pcie_root_bus=''
     EQ_PRE_LAUNCH_OPTION="-S"
@@ -767,13 +773,13 @@ if [[ "${EQ_INSTALL}" == "true" ]]; then
             "target=${EQ_ISCSI_TARGET},lun=${EQ_BOOT_LUN},node-name=oci-bm-iscsi,"\
             "cache.no-flush=off,cache.direct=on,read-only=off "\
             "-device ${EQ_SCSI_DEVICE_TYPE},bus=${EQ_CONTROLLER}0.0,id=disk1,drive=oci-bm-iscsi")
-    cdrom="-cdrom ${EQ_ISO} -boot d"
+    EQ_CDROM="-cdrom ${EQ_ISO} -boot d"
     if [[ ("${EQ_LAUNCH_MODE}" == "local") && ( ! -z "${EQ_CUSTOM_IMAGE}" ) ]]
     then
         EQ_BLOCK_DEVS="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=local_disk0,media=disk -device ide-hd,drive=local_disk0,id=local_disk1"
     fi
 else
-    cdrom=""
+    EQ_CDROM=""
     [[ "${EQ_LOCAL_BOOT}" == "true" ]] && set_local_disk
     if [[ "${EQ_LAUNCH_MODE}" == "iscsi" ]]
     then
@@ -786,10 +792,9 @@ ipxe_settings
 [[ "${EQ_PRE_LAUNCH_MODE}" == "true" ]] && pre_launch_mode_settings
 [[ "${EQ_SEV}"  == "true" ]] && enable_sev
 
-vm_launch_cmd="${EQ_QEMU_CMD} ${EQ_MACHINE} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${EQ_VIRTIO_DEVICE} ${ihc9} ${EQ_DEBUG_CON} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${EQ_PCIE_ROOT_DEVICES} ${cdrom} ${net} ${qmp_sock} ${serial} ${EQ_TPM_CMD} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${EQ_PRE_LAUNCH_OPTION} ${EQ_SEV_ARGS}"
+vm_launch_cmd=$(qemu_command)
 
 echo -e "QEMU Command:\n${vm_launch_cmd}"
 echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
-qemu_cmd_to_file
 
 eval "$vm_launch_cmd"
