@@ -31,9 +31,6 @@ EQ_SEV=false
 EQ_SEV_ARGS=""
 EQ_IOMMU_PLAT=''
 
-ubuntu=false
-ubuntu_host=false
-centos=false
 boot_lun=3
 initial_lun=7
 end_lun=13
@@ -140,8 +137,6 @@ usage()
     echo "-B                blockdev iscsi mode."
     echo "-s                Add telnet serial console on the chosen local port. Requires port number. (default: 3333)"
     echo "-S                iScsi settings. <portal_ip>,<iscsi_target>,<iscsi_initiator>"
-    echo "-u                Use it to for Ubuntu instalation"
-    echo "-U                Use it if host system is Ubuntu"
     echo "-v                vnc port"
     echo "-D                Remove -nodefaults for qemu command line"
     echo "-d                Boot from local disk. Optoins: ide | virtio-scsi | virtio-blk (default:  ide)"
@@ -155,7 +150,6 @@ usage()
     echo "-q                Specify qmp port or unix socket file (e.g. /tmp/my_qmp_sock). (default port: 3334)"
     echo "--iso             Specify ISO image for installation."
     echo "--iscsi [boot]    Attach ISCSI disks. Add 'boot' to boot from an ISCSI disk."
-    echo "--cos             To specify CentOS image"
     echo "--machine         Set machine type for Qemu. (default: pc for x86_64, virt for aarch64)"
     echo "--secboot         Start Vm in secure boot mode"
     echo "--secboot-debug   Start Vm in secure boot mode"
@@ -248,9 +242,6 @@ get_options()
                         EQ_SEV=true
                         cpu="-cpu host,+host-phys-bits"
                         EQ_IOMMU_PLAT=",disable-legacy=on,iommu_platform=true"
-                        ;;
-                    cos)
-                        centos=true
                         ;;
                    *)
                       echo "Unknown option --${OPTARG}"
@@ -349,12 +340,6 @@ get_options()
                 ;;
             s)
                 serial="-serial telnet:127.0.0.1:${OPTARG},server,nowait"
-                ;;
-            u)
-                ubuntu=true
-                ;;
-            U)
-                ubuntu_host=true
                 ;;
             v)
                vnc="-vnc :${OPTARG}"
