@@ -31,8 +31,7 @@ EQ_SEV=false
 EQ_SEV_ARGS=""
 EQ_IOMMU_PLAT=''
 
-telnet_port=4444
-mode="local"
+EQ_LAUNCH_MODE="local"
 tpm=false
 tpm_cmd=""
 pcie_root_ports=10
@@ -137,7 +136,6 @@ usage()
     echo "-D                Remove -nodefaults for qemu command line"
     echo "-d                Boot from local disk. Optoins: ide | virtio-scsi | virtio-blk (default:  ide)"
     echo "-M                Memory for VM (default: 8G)"
-    echo "-m                Launch mode. \"iscsi\" or \"local\" (default: iscsi)"
     echo "-C                Qemu cpu option (default: host)"
     echo "-c                Option to choose virio-scsi-pci or lsi controller. (defualt: virtio-scsi-pci)"
     echo "-P                Qemu smp option. (default: 8)"
@@ -166,7 +164,7 @@ usage()
 get_options() 
 {
     local OPTIND opt
-    while getopts "a:o:l:b:n:S:v:c:t:g:s:m:q:N:M:C:P:O:i:TeduUBDh-:" opt; do
+    while getopts "a:o:l:b:n:S:v:c:t:g:s:q:N:M:C:P:O:i:TeduUBDh-:" opt; do
         case "${opt}" in
             -)
                 case "${OPTARG}" in
@@ -179,7 +177,7 @@ get_options()
                         EQ_ISO="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                         ;;
                     iscsi)
-                        mode="iscsi"
+                        EQ_LAUNCH_MODE="iscsi"
                         val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                         if [[ "${val}" == "boot" ]]; then
                             EQ_ISCSI_BOOT=true
@@ -759,14 +757,14 @@ if [[ "${EQ_INSTALL}" == "true" ]]; then
             "cache.no-flush=off,cache.direct=on,read-only=off "\
             "-device ${EQ_SCSI_DEVICE_TYPE},bus=${EQ_CONTROLLER}0.0,id=disk1,drive=oci-bm-iscsi")
     cdrom="-cdrom ${EQ_ISO} -boot d"
-    if [[ ("${mode}" == "local") && ( ! -z "${EQ_CUSTOM_IMAGE}" ) ]]
+    if [[ ("${EQ_LAUNCH_MODE}" == "local") && ( ! -z "${EQ_CUSTOM_IMAGE}" ) ]]
     then
         EQ_BLOCK_DEVS="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=local_disk0,media=disk -device ide-hd,drive=local_disk0,id=local_disk1"
     fi
 else
     cdrom=""
     [[ "${EQ_LOCAL_BOOT}" == "true" ]] && set_local_disk
-    if [[ "${mode}" == "iscsi" ]]
+    if [[ "${EQ_LAUNCH_MODE}" == "iscsi" ]]
     then
         set_scsi_disks ${EQ_BOOT_LUN}
     fi
