@@ -30,16 +30,15 @@ EQ_ROM_FILE=""
 EQ_SEV=false
 EQ_SEV_ARGS=""
 EQ_IOMMU_PLAT=''
-
 EQ_LAUNCH_MODE="local"
-tpm=false
-tpm_cmd=""
+EQ_TPM=false
+EQ_TPM_CMD=""
+EQ_FIPS=false
+
 pcie_root_ports=10
 pcie_root_devices=''
 pl_mode=false
 pre_launch_option=''
-
-fips=false
 
 get_param_from_config()
 {
@@ -229,8 +228,7 @@ get_options()
                         usb_mouse="-usb -device usb-tablet,id=tablet1"
                         ;;  
                     fips)
-                        fips=true
-                        export OPENSSL_FORCE_FIPS_MODE=1
+                        EQ_FIPS=true
                         ;;
                     sev)
                         EQ_SEV=true
@@ -339,7 +337,7 @@ get_options()
                vnc="-vnc :${OPTARG}"
                ;;
             T)
-               tpm=true
+               EQ_TPM=true
                ;;
             t)
                EQ_SCSI_DEVICE_TYPE=${OPTARG}
@@ -379,7 +377,7 @@ set_defaults()
     daemonize=""
     ihc9=""
     EQ_IPXE=false
-    debug_con=""
+    EQ_DEBUG_CON=""
     # Architecture specific settings
     if [ "${EQ_ARCH}" == "x86_64" ]; 
     then 
@@ -535,18 +533,29 @@ set_local_disk()
 
 start_tpm()
 {
+    local tpm_dir="/tmp"
+    local fips_mode=""
+    tpm_dir=$(get_param_from_config TPM_DIR)
     echo -e "\e[32mStarting TPM\e[39m"
-    tpm_dir=/tmp/measured-boot
     mkdir -p ${tpm_dir}/nvram_v1/
-    ($fips) && fips_mode="OPENSSL_FORCE_FIPS_MODE=1" || fips_mode=""
-    swtpm_cmd="${fips_mode} swtpm socket --tpmstate dir=${tpm_dir}/nvram_v1/ --ctrl type=unixio,path=${tpm_dir}/swtpm-sock --tpm2 --log file=${tpm_dir}/mytpm.log,level=20,truncate --daemon"
+    if [[ "${EQ_FIPS}" == "true" ]];then
+        fips_mode="OPENSSL_FORCE_FIPS_MODE=1"
+        export OPENSSL_FORCE_FIPS_MODE=1
+    fi
+    install_packages swtpm
+    local swtpm_cmd=$(printf %s "${fips_mode} swtpm socket "\
+                "--tpmstate dir=${tpm_dir}/nvram_v1/ --ctrl type=unixio," \
+                "path=${tpm_dir}/swtpm-sock --tpm2 "\
+                "--log file=${tpm_dir}/mytpm.log,level=20,truncate --daemon")
     echo "swtpm command: ${swtpm_cmd}"
     eval "$swtpm_cmd"
 
-    tpm_cmd="-chardev socket,id=chrtpm0,path=${tpm_dir}/swtpm-sock -tpmdev emulator,id=tpm0,chardev=chrtpm0 -device tpm-tis,tpmdev=tpm0"
-    tpm_cmd="${tpm_cmd} -global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
-    tpm_cmd="${tpm_cmd} -chardev pty,id=charserial1 -device isa-serial,chardev=charserial1,id=serial1 -global driver=cfi.pflash01,property=secure,value=on"
-    debug_con="-debugcon file:${tpm_dir}/ovmf_debug.log -global isa-debugcon.iobase=0x402"
+    EQ_TPM_CMD=$(printf %s "-chardev socket,id=chrtpm0,path=${tpm_dir}/swtpm-sock "\
+                "-tpmdev emulator,id=tpm0,chardev=chrtpm0 -device tpm-tis,tpmdev=tpm0 "\
+                "-global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1 "\
+                "-chardev pty,id=charserial1 -device isa-serial,chardev=charserial1,id=serial1 "\
+                "-global driver=cfi.pflash01,property=secure,value=on")
+    EQ_DEBUG_CON="-debugcon file:${tpm_dir}/ovmf_debug.log -global isa-debugcon.iobase=0x402"
 }
 
 set_network()
@@ -630,7 +639,7 @@ qemu_cmd_to_file()
     [[ ! -z  $ihc9  ]] && content="${content}${ihc9} \\\\\n"
     [[ ! -z  $qmp_sock  ]] && content="${content}${qmp_sock} \\\\\n"
     [[ ! -z  $serial  ]] && content="${content}${serial} \\\\\n"
-    [[ ! -z  $tpm_cmd  ]] && content="${content}${tpm_cmd} \\\\\n"
+    [[ ! -z  ${EQ_TPM_CMD}  ]] && content="${content}${EQ_TPM_CMD} \\\\\n"
     [[ ! -z  $daemonize  ]] && content="${content}${daemonize} \\\\\n" 
     [[ ! -z  $usb_mouse  ]] && content="${content}${usb_mouse} \\\\\n"
     [[ ! -z  $add_args  ]] && content="${content}${add_args} \\\\\n"
@@ -657,7 +666,7 @@ copy_edk2_files()
         if [ "${EQ_ARCH}" != "aarch64" ];
         then
             ihc9="-global ICH9-LPC.disable_s3=1 -global ICH9-LPC.disable_s4=1"
-            debug_con="-debugcon file:ovmf_debug.log -global isa-debugcon.iobase=0x402"
+            EQ_DEBUG_CON="-debugcon file:ovmf_debug.log -global isa-debugcon.iobase=0x402"
         fi
     fi
     local ovmf_var_file="${EQ_EDK2_DIR}/OVMF_VARS${mode}fd"
@@ -746,7 +755,7 @@ set_defaults
 get_options "$@"
 get_host_info
 set_network
-($tpm) && start_tpm || tpm_cmd=""
+[[ "$EQ_TPM" == "true" ]] && start_tpm || EQ_TPM_CMD=""
 copy_edk2_files
 
 if [[ "${EQ_INSTALL}" == "true" ]]; then
@@ -775,7 +784,7 @@ ipxe_settings
 ($pl_mode) && pre_launch_mode_settings
 [[ "${EQ_SEV}"  == "true" ]] && enable_sev
 
-vm_launch_cmd="${EQ_QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${EQ_VIRTIO_DEVICE} ${ihc9} ${debug_con} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${tpm_cmd} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${EQ_SEV_ARGS}"
+vm_launch_cmd="${EQ_QEMU_CMD} ${machine} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${EQ_VIRTIO_DEVICE} ${ihc9} ${EQ_DEBUG_CON} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${pcie_root_devices} ${cdrom} ${net} ${qmp_sock} ${serial} ${EQ_TPM_CMD} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${EQ_SEV_ARGS}"
 
 echo -e "QEMU Command:\n${vm_launch_cmd}"
 echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
