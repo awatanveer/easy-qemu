@@ -31,10 +31,6 @@ EQ_SEV=false
 EQ_SEV_ARGS=""
 EQ_IOMMU_PLAT=''
 
-boot_lun=3
-initial_lun=7
-end_lun=13
-
 telnet_port=4444
 mode="local"
 tpm=false
