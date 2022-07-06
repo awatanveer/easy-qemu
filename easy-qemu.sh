@@ -37,9 +37,8 @@ EQ_FIPS=false
 EQ_PCIE_ROOT_PORTS=0
 EQ_PCIE_PORTS_OFFSET=5
 EQ_PCIE_ROOT_DEVICES=""
-
-pl_mode=false
-pre_launch_option=''
+EQ_PRE_LAUNCH_MODE=false
+EQ_PRE_LAUNCH_OPTION=""
 
 get_param_from_config()
 {
@@ -223,7 +222,7 @@ get_options()
                         add_pcie_root_ports_devices
                         ;; 
                     pl)
-                        pl_mode=true
+                        EQ_PRE_LAUNCH_MODE=true
                         ;;               
                     usb)
                         usb_mouse="-usb -device usb-tablet,id=tablet1"
@@ -695,8 +694,8 @@ pre_launch_mode_settings()
     EQ_VIRTIO_DEVICE=''
     ahci="" 
     EQ_LOCAL_DISK_PARAM=""
-    pcie_root_bus=''
-    pre_launch_option="-S"
+    local pcie_root_bus=''
+    EQ_PRE_LAUNCH_OPTION="-S"
     if [[ "${EQ_MACHINE}" == "-machine q35" ]]; then
         EQ_PCIE_ROOT_DEVICES=$(printf %s "${EQ_PCIE_ROOT_DEVICES} -device pcie-root-port,"\
         "port=4,chassis=4,id=pciroot4,bus=pcie.0,addr=0x4")
@@ -784,10 +783,10 @@ fi
 
 ipxe_settings 
 
-($pl_mode) && pre_launch_mode_settings
+[[ "${EQ_PRE_LAUNCH_MODE}" == "true" ]] && pre_launch_mode_settings
 [[ "${EQ_SEV}"  == "true" ]] && enable_sev
 
-vm_launch_cmd="${EQ_QEMU_CMD} ${EQ_MACHINE} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${EQ_VIRTIO_DEVICE} ${ihc9} ${EQ_DEBUG_CON} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${EQ_PCIE_ROOT_DEVICES} ${cdrom} ${net} ${qmp_sock} ${serial} ${EQ_TPM_CMD} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${pre_launch_option} ${EQ_SEV_ARGS}"
+vm_launch_cmd="${EQ_QEMU_CMD} ${EQ_MACHINE} ${name} -enable-kvm ${no_defaults} ${cpu} ${memory} ${smp} ${monitor} ${vnc} ${vga} ${edk2_drives} ${EQ_VIRTIO_DEVICE} ${ihc9} ${EQ_DEBUG_CON} ${ahci} ${EQ_LOCAL_DISK_PARAM} ${EQ_BLOCK_DEVS} ${iscsi_initiator_val} ${EQ_SCSI_DRIVES} ${EQ_PCIE_ROOT_DEVICES} ${cdrom} ${net} ${qmp_sock} ${serial} ${EQ_TPM_CMD} ${log_file} ${daemonize} ${usb_mouse} ${add_args} ${EQ_PRE_LAUNCH_OPTION} ${EQ_SEV_ARGS}"
 
 echo -e "QEMU Command:\n${vm_launch_cmd}"
 echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
