@@ -472,6 +472,7 @@ get_host_info()
 
 get_iso() 
 {
+   # TODO: Should download the distribution iso identified ideally by -o option 
    echo ""
 }
 
@@ -773,42 +774,48 @@ enable_sev()
     EQ_VIRTIO_DEVICE="-device virtio-scsi-pci,id=virtio-scsi-pci0${EQ_IOMMU_PLAT}"
 }
 
-set_defaults
-get_options "$@"
-get_host_info
-set_network
-[[ "$EQ_TPM" == "true" ]] && start_tpm || EQ_TPM_CMD=""
-copy_edk2_files
+main()
+{
+    set_defaults
+    get_options "$@"
+    get_host_info
+    set_network
+    copy_edk2_files
+    [[ "$EQ_TPM" == "true" ]] && start_tpm || EQ_TPM_CMD=""
 
-if [[ "${EQ_INSTALL}" == "true" ]]; then
-    get_iso
-    EQ_BLOCK_DEVS=$(printf %s "-blockdev driver=iscsi,transport=tcp,"\
-            "portal=${EQ_ISCSI_PORTAL_IP}:3260,initiator-name=${EQ_ISCSI_INITIATOR},"\
-            "target=${EQ_ISCSI_TARGET},lun=${EQ_BOOT_LUN},node-name=oci-bm-iscsi,"\
-            "cache.no-flush=off,cache.direct=on,read-only=off "\
-            "-device ${EQ_SCSI_DEVICE_TYPE},bus=${EQ_CONTROLLER}0.0,id=disk1,drive=oci-bm-iscsi")
-    EQ_CDROM="-cdrom ${EQ_ISO} -boot d"
-    if [[ ("${EQ_LAUNCH_MODE}" == "local") && ( ! -z "${EQ_CUSTOM_IMAGE}" ) ]]
-    then
-        EQ_BLOCK_DEVS="-drive file=${EQ_CUSTOM_IMAGE},if=none,id=local_disk0,media=disk -device ide-hd,drive=local_disk0,id=local_disk1"
+    if [[ "${EQ_INSTALL}" == "true" ]]; then
+        get_iso
+        EQ_BLOCK_DEVS=$(printf %s "-blockdev driver=iscsi,transport=tcp,"\
+                "portal=${EQ_ISCSI_PORTAL_IP}:3260,initiator-name=${EQ_ISCSI_INITIATOR},"\
+                "target=${EQ_ISCSI_TARGET},lun=${EQ_BOOT_LUN},node-name=oci-bm-iscsi,"\
+                "cache.no-flush=off,cache.direct=on,read-only=off "\
+                "-device ${EQ_SCSI_DEVICE_TYPE},bus=${EQ_CONTROLLER}0.0,id=disk1,drive=oci-bm-iscsi")
+        EQ_CDROM="-cdrom ${EQ_ISO} -boot d"
+        if [[ ("${EQ_LAUNCH_MODE}" == "local") && ( ! -z "${EQ_CUSTOM_IMAGE}" ) ]]
+        then
+            EQ_BLOCK_DEVS=$(printf %s "-drive file=${EQ_CUSTOM_IMAGE},if=none,id=local_disk0,"\
+                            "media=disk -device ide-hd,drive=local_disk0,id=local_disk1")
+        fi
+    else
+        EQ_CDROM=""
+        [[ "${EQ_LOCAL_BOOT}" == "true" ]] && set_local_disk
+        if [[ "${EQ_LAUNCH_MODE}" == "iscsi" ]]
+        then
+            set_scsi_disks ${EQ_BOOT_LUN}
+        fi
     fi
-else
-    EQ_CDROM=""
-    [[ "${EQ_LOCAL_BOOT}" == "true" ]] && set_local_disk
-    if [[ "${EQ_LAUNCH_MODE}" == "iscsi" ]]
-    then
-        set_scsi_disks ${EQ_BOOT_LUN}
-    fi
-fi
 
-ipxe_settings 
+    ipxe_settings 
 
-[[ "${EQ_PRE_LAUNCH_MODE}" == "true" ]] && pre_launch_mode_settings
-[[ "${EQ_SEV}"  == "true" ]] && enable_sev
+    [[ "${EQ_PRE_LAUNCH_MODE}" == "true" ]] && pre_launch_mode_settings
+    [[ "${EQ_SEV}"  == "true" ]] && enable_sev
 
-vm_launch_cmd=$(qemu_command)
+    vm_launch_cmd=$(qemu_command)
 
-echo -e "QEMU Command:\n${vm_launch_cmd}"
-echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
+    echo -e "QEMU Command:\n${vm_launch_cmd}"
+    echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
 
-eval "$vm_launch_cmd"
+    eval "$vm_launch_cmd"
+}
+
+main "$@"
