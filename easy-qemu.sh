@@ -144,7 +144,6 @@ usage()
     echo "-b                PCI bus id. Required if -n is set to \"vf\"."
     echo "-B                blockdev iscsi mode."
     echo "-s                Add telnet serial console on the chosen local port. Requires port number. (default: 3333)"
-    echo "-S                iScsi settings. <portal_ip>,<iscsi_target>,<iscsi_initiator>"
     echo "-v                vnc port"
     echo "-D                Remove -nodefaults for qemu command line"
     echo "-d                Boot from local disk. Optoins: ide | virtio-scsi | virtio-blk (default:  ide)"
@@ -254,20 +253,29 @@ get_options()
                       exit 1
                       ;;
                 esac;;
+            a) EQ_ADDITIONAL_ARGS=${OPTARG} ;;
+            O) EQ_CUSTOM_IMAGE=${OPTARG} ;;
+            b) EQ_PCI_BUS=${OPTARG} ;;
+            g) EQ_VGA="-vga ${OPTARG}" ;;
+            N) EQ_NIC_MODEL=${OPTARG}  ;;
+            B) EQ_SCSI_DRIVE_MODE=false ;;
+            D) EQ_NO_DEFAULTS="" ;;
+            C) EQ_CPU="-cpu ${OPTARG}" ;;
+            M) EQ_MEMORY="-m ${OPTARG}" ;;
+            P) EQ_SMP="-smp ${OPTARG}"  ;;
+            s) EQ_SERIAL="-serial telnet:127.0.0.1:${OPTARG},server,nowait" ;;
+            v) EQ_VNC="-vnc :${OPTARG}" ;;
+            T) EQ_TPM=true ;;
+            t) EQ_SCSI_DEVICE_TYPE=${OPTARG} ;;
+            l) EQ_LUNS=${OPTARG} ;;
+            n) EQ_NETWORK=${OPTARG} ;;
+            h) usage ;;
             o)
                 EQ_OS_VERSION=${OPTARG}
                 EQ_VM_NAME="-name ${EQ_OS_VERSION}-uefi"
                 EQ_LOG_FILE="-D ./${EQ_OS_VERSION}-uefi.log"
                 ;;
-            l)
-                EQ_LUNS=${OPTARG}
-                if [[ "${EQ_LUNS}" == *,* ]]; then
-                    EQ_LUN_ARRAY=(${EQ_LUNS//,/ })
-                    EQ_BOOT_LUN=${EQ_LUN_ARRAY[0]}
-                else
-                    EQ_BOOT_LUN=${OPTARG}
-                fi
-                ;;
+
             q)
                # check if it is not a number i.e. port number
                re='^[0-9]+$' 
@@ -277,27 +285,6 @@ get_options()
                     EQ_QMP_SOCK="-qmp tcp:127.0.0.1:${OPTARG},server,nowait"
                fi
                ;;
-            n)
-                EQ_NETWORK=${OPTARG}
-                if [[ "${EQ_NETWORK}" != *"macvtap"*  && \
-                    "${EQ_NETWORK}" != "vf" && \
-                    "${EQ_NETWORK}" != "user" ]]; then
-                    echo -e "\n${EQ_NETWORK} is invalid option for -n\n"
-                    exit 1
-                fi
-                ;;
-            S)
-                iscsi_info=${OPTARG}
-                if [[ "$iscsi_info" == *,*  ]]; then
-                    si_arr=(${iscsi_info//,/ })
-                    iscsi_portal=${si_arr[0]}
-                    iscsi_target=${si_arr[1]}
-                    iscsi_initiator=${si_arr[2]}
-                else
-                    echo "Invalid arguments for -S"
-                    echo "Using default iscsi settings."
-                fi
-                ;;
             c)
                 EQ_CONTROLLER=${OPTARG}
                 EQ_VIRTIO_DEVICE="-device ${EQ_CONTROLLER},id=${EQ_CONTROLLER}0"
@@ -314,21 +301,6 @@ get_options()
                   EQ_LOCAL_DISK_TYPE="ide"
                 fi
                 ;;
-            a) EQ_ADDITIONAL_ARGS=${OPTARG} ;;
-            O) EQ_CUSTOM_IMAGE=${OPTARG} ;;
-            b) EQ_PCI_BUS=${OPTARG} ;;
-            g) EQ_VGA="-vga ${OPTARG}" ;;
-            N) EQ_NIC_MODEL=${OPTARG}  ;;
-            B) EQ_SCSI_DRIVE_MODE=false ;;
-            D) EQ_NO_DEFAULTS="" ;;
-            C) EQ_CPU="-cpu ${OPTARG}" ;;
-            M) EQ_MEMORY="-m ${OPTARG}" ;;
-            P) EQ_SMP="-smp ${OPTARG}"  ;;
-            s) EQ_SERIAL="-serial telnet:127.0.0.1:${OPTARG},server,nowait" ;;
-            v) EQ_VNC="-vnc :${OPTARG}" ;;
-            T) EQ_TPM=true ;;
-            t) EQ_SCSI_DEVICE_TYPE=${OPTARG} ;;
-            h) usage ;;
             *)
                 echo "Unknow option ${opt}"
                 echo "Use -h for help"
@@ -449,6 +421,12 @@ get_iso()
 set_scsi_disks() 
 {
     local boot_index=""
+    if [[ "${EQ_LUNS}" == *,* ]]; then
+        EQ_LUN_ARRAY=(${EQ_LUNS//,/ })
+        EQ_BOOT_LUN=${EQ_LUN_ARRAY[0]}
+    else
+        EQ_BOOT_LUN=${OPTARG}
+    fi
     [[ "${EQ_ISCSI_BOOT}" == "true" ]] && boot_index=",bootindex=0"
     local counter=1
     for lun in "${EQ_LUN_ARRAY[@]}"; do 
@@ -545,6 +523,13 @@ start_tpm()
 
 set_network()
 {
+    [[ "${EQ_NETWORK}" == "false" ]] && return 0
+    if [[ "${EQ_NETWORK}" != *"macvtap"*  && \
+        "${EQ_NETWORK}" != "vf" && \
+        "${EQ_NETWORK}" != "user" ]]; then
+        echo -e "\n${EQ_NETWORK} is invalid option for -n\n"
+        exit 1
+    fi
     if [ "${EQ_NETWORK}" == "vf" ]; then
         if [[ -z "${EQ_PCI_BUS}" ]]; then
             echo -e "\n-n flag requires -b flag.\n"
