@@ -774,15 +774,8 @@ enable_sev()
     EQ_VIRTIO_DEVICE="-device virtio-scsi-pci,id=virtio-scsi-pci0${EQ_IOMMU_PLAT}"
 }
 
-main()
+iso_install()
 {
-    set_defaults
-    get_options "$@"
-    get_host_info
-    set_network
-    copy_edk2_files
-    [[ "$EQ_TPM" == "true" ]] && start_tpm || EQ_TPM_CMD=""
-
     if [[ "${EQ_INSTALL}" == "true" ]]; then
         get_iso
         EQ_BLOCK_DEVS=$(printf %s "-blockdev driver=iscsi,transport=tcp,"\
@@ -805,11 +798,20 @@ main()
         fi
     fi
 
-    ipxe_settings 
+}
 
+main()
+{
+    set_defaults
+    get_options "$@"
+    get_host_info
+    set_network
+    copy_edk2_files
+    iso_install
+    ipxe_settings
+    [[ "$EQ_TPM" == "true" ]] && start_tpm || EQ_TPM_CMD="" 
     [[ "${EQ_PRE_LAUNCH_MODE}" == "true" ]] && pre_launch_mode_settings
     [[ "${EQ_SEV}"  == "true" ]] && enable_sev
-
     vm_launch_cmd=$(qemu_command)
 
     echo -e "QEMU Command:\n${vm_launch_cmd}"
