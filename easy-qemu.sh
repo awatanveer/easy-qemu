@@ -171,7 +171,7 @@ usage()
     echo "--fips            Force openssl into fips mode"
     echo "--sev             Start VM in SEV mode (This option should only be used to AMD machines"
     echo "-h                Help"
-    exit 1
+    exit 0
 }
 
 get_options() 
@@ -254,32 +254,20 @@ get_options()
                       exit 1
                       ;;
                 esac;;
-            a)
-                EQ_ADDITIONAL_ARGS=${OPTARG}
-                ;;
             o)
                 EQ_OS_VERSION=${OPTARG}
                 EQ_VM_NAME="-name ${EQ_OS_VERSION}-uefi"
                 EQ_LOG_FILE="-D ./${EQ_OS_VERSION}-uefi.log"
                 ;;
-            O)
-                EQ_CUSTOM_IMAGE=${OPTARG}
-                ;;
             l)
-                luns=${OPTARG}
-                if [[ "$luns" == *,* ]]; then
-                    EQ_LUN_ARRAY=(${luns//,/ })
+                EQ_LUNS=${OPTARG}
+                if [[ "${EQ_LUNS}" == *,* ]]; then
+                    EQ_LUN_ARRAY=(${EQ_LUNS//,/ })
                     EQ_BOOT_LUN=${EQ_LUN_ARRAY[0]}
                 else
                     EQ_BOOT_LUN=${OPTARG}
                 fi
                 ;;
-            b)
-               EQ_PCI_BUS=${OPTARG}
-               ;;
-            g)
-               EQ_VGA="-vga ${OPTARG}"
-               ;;
             q)
                # check if it is not a number i.e. port number
                re='^[0-9]+$' 
@@ -298,9 +286,6 @@ get_options()
                     exit 1
                 fi
                 ;;
-            N)
-                EQ_NIC_MODEL=${OPTARG}
-                ;;
             S)
                 iscsi_info=${OPTARG}
                 if [[ "$iscsi_info" == *,*  ]]; then
@@ -312,15 +297,6 @@ get_options()
                     echo "Invalid arguments for -S"
                     echo "Using default iscsi settings."
                 fi
-                ;;
-            B)
-                EQ_SCSI_DRIVE_MODE=false
-                ;;
-            D)
-                EQ_NO_DEFAULTS=""
-                ;;
-            C)
-                EQ_CPU="-cpu ${OPTARG}"
                 ;;
             c)
                 EQ_CONTROLLER=${OPTARG}
@@ -338,27 +314,21 @@ get_options()
                   EQ_LOCAL_DISK_TYPE="ide"
                 fi
                 ;;
-            M)
-                EQ_MEMORY="-m ${OPTARG}"
-                ;;
-            P)
-                EQ_SMP="-smp ${OPTARG}"
-                ;;
-            s)
-                EQ_SERIAL="-serial telnet:127.0.0.1:${OPTARG},server,nowait"
-                ;;
-            v)
-               EQ_VNC="-vnc :${OPTARG}"
-               ;;
-            T)
-               EQ_TPM=true
-               ;;
-            t)
-               EQ_SCSI_DEVICE_TYPE=${OPTARG}
-               ;;
-            h)
-                usage
-                ;;
+            a) EQ_ADDITIONAL_ARGS=${OPTARG} ;;
+            O) EQ_CUSTOM_IMAGE=${OPTARG} ;;
+            b) EQ_PCI_BUS=${OPTARG} ;;
+            g) EQ_VGA="-vga ${OPTARG}" ;;
+            N) EQ_NIC_MODEL=${OPTARG}  ;;
+            B) EQ_SCSI_DRIVE_MODE=false ;;
+            D) EQ_NO_DEFAULTS="" ;;
+            C) EQ_CPU="-cpu ${OPTARG}" ;;
+            M) EQ_MEMORY="-m ${OPTARG}" ;;
+            P) EQ_SMP="-smp ${OPTARG}"  ;;
+            s) EQ_SERIAL="-serial telnet:127.0.0.1:${OPTARG},server,nowait" ;;
+            v) EQ_VNC="-vnc :${OPTARG}" ;;
+            T) EQ_TPM=true ;;
+            t) EQ_SCSI_DEVICE_TYPE=${OPTARG} ;;
+            h) usage ;;
             *)
                 echo "Unknow option ${opt}"
                 echo "Use -h for help"
@@ -797,7 +767,6 @@ iso_install()
             set_scsi_disks ${EQ_BOOT_LUN}
         fi
     fi
-
 }
 
 main()
