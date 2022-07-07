@@ -627,7 +627,7 @@ add_pcie_root_ports_devices()
     fi
 }
 
-qemu_command()
+create_qemu_command()
 {
     content='#!/bin/bash\n\n'
     content="${content}${EQ_QEMU_CMD} ${EQ_VM_NAME} \\\\\n"
@@ -802,6 +802,7 @@ iso_install()
 
 main()
 {
+    local vm_launch_cmd=""
     set_defaults
     get_options "$@"
     get_host_info
@@ -812,11 +813,9 @@ main()
     [[ "$EQ_TPM" == "true" ]] && start_tpm || EQ_TPM_CMD="" 
     [[ "${EQ_PRE_LAUNCH_MODE}" == "true" ]] && pre_launch_mode_settings
     [[ "${EQ_SEV}"  == "true" ]] && enable_sev
-    vm_launch_cmd=$(qemu_command)
-
+    vm_launch_cmd=$(create_qemu_command)
     echo -e "QEMU Command:\n${vm_launch_cmd}"
     echo -e ${vm_launch_cmd} > qemu-cmd-latest-noformat
-
     eval "$vm_launch_cmd"
 }
 
