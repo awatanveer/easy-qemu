@@ -53,6 +53,7 @@ EQ_PCIE_PORTS_OFFSET=5
 EQ_PCIE_ROOT_DEVICES=""
 EQ_PRE_LAUNCH_MODE=false
 EQ_PRE_LAUNCH_OPTION=""
+EQ_QMP_SOCK_VAL=""
 
 get_param_from_config()
 {
@@ -202,14 +203,8 @@ get_options()
                        EQ_MONITOR="-display none -serial stdio"
                        EQ_SERIAL=""
                        ;;
-                    log)
-                        val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                        EQ_LOG_FILE="-D ${val}"
-                        ;;
-                    bg)
-                        EQ_DAEMONIZE="-daemonize"
-                        EQ_MONITOR=""
-                        ;;
+                    log) val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 )); EQ_LOG_FILE="-D ${val}" ;;
+                    bg) EQ_DAEMONIZE="-daemonize"; EQ_MONITOR="" ;;
                     machine)
                         val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
                         EQ_MACHINE="-machine ${val}"; 
@@ -269,22 +264,9 @@ get_options()
             t) EQ_SCSI_DEVICE_TYPE=${OPTARG} ;;
             l) EQ_LUNS=${OPTARG} ;;
             n) EQ_NETWORK=${OPTARG} ;;
+            o) EQ_OS_VERSION=${OPTARG} ;;
+            q) EQ_QMP_SOCK_VAL=${OPTARG} ;;
             h) usage ;;
-            o)
-                EQ_OS_VERSION=${OPTARG}
-                EQ_VM_NAME="-name ${EQ_OS_VERSION}-uefi"
-                EQ_LOG_FILE="-D ./${EQ_OS_VERSION}-uefi.log"
-                ;;
-
-            q)
-               # check if it is not a number i.e. port number
-               re='^[0-9]+$' 
-               if ! [[ $OPTARG =~ $re ]] ; then
-                    EQ_QMP_SOCK="-qmp unix:${OPTARG},server,nowait" # unix socket
-               else
-                    EQ_QMP_SOCK="-qmp tcp:127.0.0.1:${OPTARG},server,nowait"
-               fi
-               ;;
             c)
                 EQ_CONTROLLER=${OPTARG}
                 EQ_VIRTIO_DEVICE="-device ${EQ_CONTROLLER},id=${EQ_CONTROLLER}0"
@@ -309,6 +291,7 @@ get_options()
          esac
     done
 }
+
 set_defaults() 
 {
     EQ_ISCSI_PORTAL_IP=$(get_param_from_config ISCSI_PORTAL_IP)
@@ -721,6 +704,19 @@ install_packages()
     fi
 }
 
+set_qmp()
+{
+    if [[ -n "${EQ_QMP_SOCK_VAL}" ]]; then
+        local re='^[0-9]+$'
+        # Check if it is not a number i.e. port number
+        if [[ ${EQ_QMP_SOCK_VAL} =~ $re ]]; then
+            EQ_QMP_SOCK="-qmp tcp:127.0.0.1:${EQ_QMP_SOCK_VAL},server,nowait"
+        else
+            EQ_QMP_SOCK="-qmp unix:${EQ_QMP_SOCK_VAL},server,nowait" # unix socket
+        fi
+    fi
+}
+
 enable_sev()
 {
     EQ_SEV_ARGS=$(printf %s "-device virtio-rng-pci,disable-legacy=on,"\
@@ -764,6 +760,7 @@ main()
     copy_edk2_files
     iso_install
     ipxe_settings
+    set_qmp
     [[ "$EQ_TPM" == "true" ]] && start_tpm || EQ_TPM_CMD="" 
     [[ "${EQ_PRE_LAUNCH_MODE}" == "true" ]] && pre_launch_mode_settings
     [[ "${EQ_SEV}"  == "true" ]] && enable_sev
