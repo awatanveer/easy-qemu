@@ -1,13 +1,11 @@
 #!/bin/bash
 
-# Copyright [2022] [Awais Tanveer]
+# Copyright 2022 Awais Tanveer
 
 # Licensed under the Apache License, Version 2.0 (the "License");
 # you may not use this file except in compliance with the License.
 # You may obtain a copy of the License at
-
 #     https://www.apache.org/licenses/LICENSE-2.0
-
 # Unless required by applicable law or agreed to in writing, software
 # distributed under the License is distributed on an "AS IS" BASIS,
 # WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
@@ -178,76 +176,41 @@ get_options()
 {
     local OPTIND opt
     while getopts "a:o:l:b:n:S:v:c:t:g:s:q:N:M:C:P:O:i:TeduUBDh-:" opt; do
-        case "${opt}" in
-            -)
-                case "${OPTARG}" in
-                    help)
-                        usage
-                        exit 0
-                        ;;
-                    iso)
-                        EQ_INSTALL=true
-                        EQ_ISO="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                        ;;
-                    iscsi)
-                        EQ_LAUNCH_MODE="iscsi"
-                        val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                        if [[ "${val}" == "boot" ]]; then
-                            EQ_ISCSI_BOOT=true
-                            EQ_LOCAL_BOOT=false
-                        else
-                            OPTIND=$(( $OPTIND - 1 ))
-                        fi
-                        ;;
-                    stdio)
-                       EQ_MONITOR="-display none -serial stdio"
-                       EQ_SERIAL=""
-                       ;;
-                    log) val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 )); EQ_LOG_FILE="-D ${val}" ;;
-                    bg) EQ_DAEMONIZE="-daemonize"; EQ_MONITOR="" ;;
-                    machine)
-                        val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                        EQ_MACHINE="-machine ${val}"; 
-                        ;;        
-                    secboot)
-                        secure_boot=true
-                        ;;
-                    secboot-debug)
-                        secure_boot_debug=true
-                        ;;
-                    ipxe)
-                        val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                        EQ_ROM_FILE=${val}
-                        EQ_IPXE=true
-                        ;;
-                    big-vm)
-                        EQ_CPU="-cpu host,+host-phys-bits"
-                        EQ_MEMORY="-m 1.2T"
-                        ;;       
-                    pcie-root)
-                        val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
-                        EQ_PCIE_ROOT_PORTS=val
-                        add_pcie_root_ports_devices
-                        ;; 
-                    pl)
-                        EQ_PRE_LAUNCH_MODE=true
-                        ;;               
-                    usb)
-                        EQ_USB_MOUSE="-usb -device usb-tablet,id=tablet1"
-                        ;;  
-                    fips)
-                        EQ_FIPS=true
-                        ;;
-                    sev)
-                        EQ_SEV=true
-                        EQ_CPU="-cpu host,+host-phys-bits"
-                        EQ_IOMMU_PLAT=",disable-legacy=on,iommu_platform=true"
-                        ;;
-                   *)
-                      echo "Unknown option --${OPTARG}"
-                      exit 1
-                      ;;
-                esac;;
+        case "${opt}" in -)
+            case "${OPTARG}" in
+                help) usage; exit 0 ;;
+                iso)  EQ_INSTALL=true; EQ_ISO="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 )) ;;
+                stdio) EQ_MONITOR="-display none -serial stdio"; EQ_SERIAL="" ;;
+                log) val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 )); EQ_LOG_FILE="-D ${val}" ;;
+                bg) EQ_DAEMONIZE="-daemonize"; EQ_MONITOR="" ;;
+                machine) EQ_MACHINE="-machine ${!OPTIND}" OPTIND=$(( $OPTIND + 1 )) ;;        
+                secboot) secure_boot=true ;;
+                secboot-debug) secure_boot_debug=true ;;
+                ipxe) EQ_ROM_FILE=${!OPTIND}; OPTIND=$(( $OPTIND + 1 )); EQ_IPXE=true ;;
+                big-vm) EQ_CPU="-cpu host,+host-phys-bits"; EQ_MEMORY="-m 1.2T" ;;
+                pl) EQ_PRE_LAUNCH_MODE=true ;;               
+                usb) EQ_USB_MOUSE="-usb -device usb-tablet,id=tablet1" ;;  
+                fips) EQ_FIPS=true ;;   
+                sev) EQ_SEV=true ;;
+                iscsi)
+                    EQ_LAUNCH_MODE="iscsi"
+                    val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
+                    if [[ "${val}" == "boot" ]]; then
+                        EQ_ISCSI_BOOT=true
+                        EQ_LOCAL_BOOT=false
+                    else
+                        OPTIND=$(( $OPTIND - 1 ))
+                    fi
+                    ;;
+                pcie-root) 
+                        EQ_PCIE_ROOT_PORTS=${!OPTIND}; OPTIND=$(( $OPTIND + 1 )); 
+                        add_pcie_root_ports_devices 
+                    ;; 
+                *)
+                    echo "Unknown option --${OPTARG}"
+                    exit 1
+                    ;;
+            esac;;
             a) EQ_ADDITIONAL_ARGS=${OPTARG} ;;
             O) EQ_CUSTOM_IMAGE=${OPTARG} ;;
             b) EQ_PCI_BUS=${OPTARG} ;;
@@ -267,16 +230,13 @@ get_options()
             o) EQ_OS_VERSION=${OPTARG} ;;
             q) EQ_QMP_SOCK_VAL=${OPTARG} ;;
             h) usage ;;
-            c)
-                EQ_CONTROLLER=${OPTARG}
-                EQ_VIRTIO_DEVICE="-device ${EQ_CONTROLLER},id=${EQ_CONTROLLER}0"
-                ;;
+            c) EQ_CONTROLLER=${OPTARG} ;;
             d)
                 EQ_LOCAL_BOOT=true
                 # Check next positional parameter
                 eval nextopt=\${$OPTIND}
                 # existing or starting with dash?
-                if [[ -n $nextopt && $nextopt != -* ]] ; then
+                if [[ -n "${nextopt}" && "${nextopt}" != -* ]] ; then
                   OPTIND=$((OPTIND + 1))
                   EQ_LOCAL_DISK_TYPE=$nextopt
                 else
@@ -719,6 +679,8 @@ set_qmp()
 
 enable_sev()
 {
+    EQ_CPU="-cpu host,+host-phys-bits" 
+    EQ_IOMMU_PLAT=",disable-legacy=on,iommu_platform=true"
     EQ_SEV_ARGS=$(printf %s "-device virtio-rng-pci,disable-legacy=on,"\
                 "iommu_platform=true -object sev-guest,id=sev0,cbitpos=$(get_c_bit),"\
                 "reduced-phys-bits=1 -machine memory-encryption=sev0")
@@ -761,6 +723,7 @@ main()
     iso_install
     ipxe_settings
     set_qmp
+    EQ_VIRTIO_DEVICE="-device ${EQ_CONTROLLER},id=${EQ_CONTROLLER}0"
     [[ "$EQ_TPM" == "true" ]] && start_tpm || EQ_TPM_CMD="" 
     [[ "${EQ_PRE_LAUNCH_MODE}" == "true" ]] && pre_launch_mode_settings
     [[ "${EQ_SEV}"  == "true" ]] && enable_sev
