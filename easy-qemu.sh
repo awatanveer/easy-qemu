@@ -632,9 +632,9 @@ copy_edk2_files()
     if [[ ! -f "${ovmf_var_file}" ]]; then
         ovmf_var_file="${EQ_EDK2_DIR}/OVMF_VARS.fd"
     fi 
-    cp -f ${ovmf_var_file} OVMF_VARS.${EQ_OS_VERSION}
+    cp -f ${ovmf_var_file} OVMF_VARS.${EQ_OS_VERSION}.fd
     EQ_EDK2_DRIVES=$(printf %s "-drive file=${EQ_EDK2_DIR}/OVMF_CODE${mode}fd,index=0,"\
-                    "if=pflash,format=raw,readonly -drive file=OVMF_VARS.${EQ_OS_VERSION},"\
+                    "if=pflash,format=raw,readonly -drive file=OVMF_VARS.${EQ_OS_VERSION}.fd,"\
                     "index=1,if=pflash,format=raw")
 }
 
