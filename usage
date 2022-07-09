@@ -1,0 +1,46 @@
+Usage: easy_qemu.sh -O IMAGE [OPTION...]
+
+Short options:
+-a ARGS             Additional arguments for qemu command line
+-b PCI_BUS          PCI bus id. Required if -n is set to "vf".
+-B                  Blockdev iscsi mode.
+-c CONTROLLER       Values allowed: [virio-scsi-pci|lsi controller] (defualt: virtio-scsi-pci)
+-C ARGS             Qemu cpu option (default: host)
+-d DISK_TYPE        Disk type for local disk used for booting. 
+                    Values allowed: [ide|virtio-scsi|virtio-blk] (default:  ide)
+-D                  Remove -nodefaults from qemu command line
+-g                  VGA type (default: std)
+-l ARRAY            Comma (,) separated array of lun numbers.
+                    Format: BOOT_LUN,DATA_LUN1,DATA_LUN2... (example: -l 0,2,3,5,7)
+                    The first lun number is used for booting or installing OS (default: 0).
+-M SIZE             Memory for VM (default: 8G)
+-n NET_TYPE         Network mode. Macvtap device or vfio-pci device.  (default: No network device)
+-N NIC_MODEL        NIC model e.g. e1000. Use qemu-system-<arch> -nic model=help to get the list.
+-o NAME             OS (default:os_name)
+-O                  Launch from user provided image.
+-P ARGS             Qemu smp option. (default: 8)
+-q PORT             Specify qmp port or unix socket file (e.g. /tmp/my_qmp_sock). (default port: 3334)
+-s PORT             Add telnet serial console on the chosen local port. Requires port number. (default: 3333)
+-t DEVICE_TYPE      iSCSI device type. Values allowed: [scsi-block|scsi-hd] (default: scsi-block)
+-T                  Start VM with TPM.
+-v PORT             VNC port
+
+Long options:
+--bg                run qemu in the background aka daemonize
+--big-vm            Start Big VM (default memory size: 1.2T)
+--fips              Force openssl into fips mode
+--ipxe ROM_FILE     ipxe mode.
+--iscsi [boot]      Attach ISCSI disks. Add 'boot' to boot from an ISCSI disk. 
+                    Use -l to add additional ISCSI disks.
+--iso               Specify ISO image for installation.
+--log FILE          Log file for qemu logs (default: os_name-uefi.log)
+--machine           Set machine type for Qemu. (default: pc for x86_64, virt for aarch64)
+--pcie-root NUM     Add pcie root ports. These are usually added to support q35 and aarch64 guests.
+--pl                Start qemu in pre-launch mode. Adds -S to qemu command line.
+--secboot           Start VM in secure boot mode
+--secboot-debug     Start VM in secure boot mode
+--sev               Start VM in SEV mode (This option should only be used to AMD machines)
+--stdio             Start VM with serial console on stdio
+--usb               To add usb mouse
+
+-h, --help          Print help

@@ -126,50 +126,11 @@ detect_os()
 
 usage()
 {
-    echo "Usage: iscsi-vm-ol-installation.sh [OPTION...]"
-    echo "-a                Additional arguments for qemu command line"
-    echo "-o                OL version (default:os_name)"
-    echo "-O                Launch from user provided image."
-    echo "-l                Format: -l BOOT_LUN,DATA_LUN1,DATA_LUN2 ... (example: 0,2,3,5,7)"
-    echo "                  iscsi lun number used for booting or installing OL (default: 3)."
-    echo "                  It can also be used to attach array of scsi disks."
-    echo "-i                For installation on an iscsi lun. It first downloads the iso from sysinfra."
-    echo "                  To install on local image, use -O option to specify the location of image where OS"
-    echo "                  needs to be installed."
-    echo "-g                VGA type (default: std)"
-    echo "-n                [ macvtap_name | vf ] 
-                  Network mode. Macvtap device or vfio-pci device.  (default: No network device)"
-    echo "-N                NIC model e.g. e1000. Use qemu-system-<arch> -nic model=help to get the list."
-    echo "-b                PCI bus id. Required if -n is set to \"vf\"."
-    echo "-B                blockdev iscsi mode."
-    echo "-s                Add telnet serial console on the chosen local port. Requires port number. (default: 3333)"
-    echo "-v                vnc port"
-    echo "-D                Remove -nodefaults for qemu command line"
-    echo "-d                Boot from local disk. Optoins: ide | virtio-scsi | virtio-blk (default:  ide)"
-    echo "-M                Memory for VM (default: 8G)"
-    echo "-C                Qemu cpu option (default: host)"
-    echo "-c                Option to choose virio-scsi-pci or lsi controller. (defualt: virtio-scsi-pci)"
-    echo "-P                Qemu smp option. (default: 8)"
-    echo "-T                Start VM with TPM."
-    echo "-t                iScsi device type i.e. scsi-block or scsi-hd. (default: scsi-block)"
-    echo "-q                Specify qmp port or unix socket file (e.g. /tmp/my_qmp_sock). (default port: 3334)"
-    echo "--iso             Specify ISO image for installation."
-    echo "--iscsi [boot]    Attach ISCSI disks. Add 'boot' to boot from an ISCSI disk."
-    echo "--machine         Set machine type for Qemu. (default: pc for x86_64, virt for aarch64)"
-    echo "--secboot         Start Vm in secure boot mode"
-    echo "--secboot-debug   Start Vm in secure boot mode"
-    echo "--stdio           Start Vm with serial console on stdio"
-    echo "--log             log file for qemu logs (default: OLX-uefi.log)"
-    echo "--bg              run qemu in the background aka daemonize"
-    echo "--ipxe            ipxe mode. --ipxe <rom file>"
-    echo "--big-vm          Start Big VM (default memory size: 1.2T) "
-    echo "--pcie-root       Add pcie root ports. These are usually added to support q35 and aarch64 guests."
-    echo "--pl              Start qemu in pre-launch mode"
-    echo "--usb             To add usb mouse"
-    echo "--fips            Force openssl into fips mode"
-    echo "--sev             Start VM in SEV mode (This option should only be used to AMD machines"
-    echo "-h                Help"
-    exit 0
+    if [[ -f usage ]]; then
+        cat usage
+        exit 0
+    fi
+    exit 1
 }
 
 get_options() 
