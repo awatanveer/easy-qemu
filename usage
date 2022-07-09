@@ -22,7 +22,6 @@ Short options:
 -q PORT             Specify qmp port or unix socket file (e.g. /tmp/my_qmp_sock). (default port: 3334)
 -s PORT             Add telnet serial console on the chosen local port. Requires port number. (default: 3333)
 -t DEVICE_TYPE      iSCSI device type. Values allowed: [scsi-block|scsi-hd] (default: scsi-block)
--T                  Start VM with TPM. Requires swtpm package on the host.
 -v PORT             VNC port
 
 Long options:
@@ -40,6 +39,7 @@ Long options:
 --secboot           Start VM in secure boot mode
 --secboot-debug     Start VM in secure boot mode
 --sev               Start VM in SEV mode (This option should only be used to AMD machines)
+--tpm               Start VM with virtual TPM device. Requires swtpm package on the host.
 --stdio             Start VM with serial console on stdio
 --usb               To add usb mouse
 
