@@ -67,7 +67,7 @@ usage()
 get_options() 
 {
     local OPTIND opt
-    while getopts "a:o:l:b:n:S:v:c:t:g:s:q:N:M:C:P:O:i:TeduUBDh-:" opt; do
+    while getopts "a:o:l:b:n:v:c:t:g:s:q:N:M:C:P:O:eduUBDh-:" opt; do
         case "${opt}" in -)
             case "${OPTARG}" in
                 help) usage; exit 0 ;;
@@ -84,6 +84,7 @@ get_options()
                 usb) EQ_USB_MOUSE="-usb -device usb-tablet,id=tablet1" ;;  
                 fips) EQ_FIPS=true ;;   
                 sev) EQ_SEV=true ;;
+                tpm) EQ_TPM=true ;;
                 iscsi)
                     EQ_LAUNCH_MODE="iscsi"
                     val="${!OPTIND}"; OPTIND=$(( $OPTIND + 1 ))
@@ -115,7 +116,6 @@ get_options()
             P) EQ_SMP="-smp ${OPTARG}"  ;;
             s) EQ_SERIAL="-serial telnet:127.0.0.1:${OPTARG},server,nowait" ;;
             v) EQ_VNC="-vnc :${OPTARG}" ;;
-            T) EQ_TPM=true ;;
             t) EQ_SCSI_DEVICE_TYPE=${OPTARG} ;;
             l) EQ_LUNS=${OPTARG} ;;
             n) EQ_NETWORK=${OPTARG} ;;
