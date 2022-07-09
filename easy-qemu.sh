@@ -253,15 +253,20 @@ get_iso()
    echo ""
 }
 
-set_scsi_disks() 
+parse_lun_array()
 {
-    local boot_index=""
-    if [[ "${EQ_LUNS}" == *,* ]]; then
+    if [[ -n "${EQ_LUNS}" ]]; then
         EQ_LUN_ARRAY=(${EQ_LUNS//,/ })
         EQ_BOOT_LUN=${EQ_LUN_ARRAY[0]}
     else
-        EQ_BOOT_LUN=${OPTARG}
+        EQ_BOOT_LUN=${EQ_BOOT_LUN}
     fi
+}
+
+set_scsi_disks() 
+{
+    local boot_index=""
+    parse_lun_array
     [[ "${EQ_ISCSI_BOOT}" == "true" ]] && boot_index=",bootindex=0"
     local counter=1
     for lun in "${EQ_LUN_ARRAY[@]}"; do 
@@ -545,6 +550,7 @@ enable_sev()
 
 iso_install()
 {
+    parse_lun_array
     if [[ "${EQ_INSTALL}" == "true" ]]; then
         get_iso
         EQ_BLOCK_DEVS=$(printf %s "-blockdev driver=iscsi,transport=tcp,"\
