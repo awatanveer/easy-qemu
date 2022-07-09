@@ -67,7 +67,7 @@ usage()
 get_options() 
 {
     local OPTIND opt
-    while getopts "a:o:l:b:n:v:c:t:g:s:q:N:M:C:P:O:eduUBDh-:" opt; do
+    while getopts "a:o:l:b:n:v:c:t:g:s:q:N:M:C:P:O:dBDh" opt; do
         case "${opt}" in -)
             case "${OPTARG}" in
                 help) usage; exit 0 ;;
