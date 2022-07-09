@@ -1,4 +1,4 @@
-Usage: easy_qemu.sh -O IMAGE [OPTION...]
+Usage: easy_qemu.sh [OPTION]...
 
 Short options:
 -a ARGS             Additional arguments for qemu command line
@@ -9,7 +9,7 @@ Short options:
 -d DISK_TYPE        Disk type for local disk used for booting. 
                     Values allowed: [ide|virtio-scsi|virtio-blk] (default:  ide)
 -D                  Remove -nodefaults from qemu command line
--g                  VGA type (default: std)
+-g VGA_TYPE         VGA type (default: std)
 -l ARRAY            Comma (,) separated array of lun numbers.
                     Format: BOOT_LUN,DATA_LUN1,DATA_LUN2... (example: -l 0,2,3,5,7)
                     The first lun number is used for booting or installing OS (default: 0).
@@ -17,12 +17,12 @@ Short options:
 -n NET_TYPE         Network mode. Macvtap device or vfio-pci device.  (default: No network device)
 -N NIC_MODEL        NIC model e.g. e1000. Use qemu-system-<arch> -nic model=help to get the list.
 -o NAME             OS (default:os_name)
--O                  Launch from user provided image.
+-O IMAGE            Launch from user provided image.
 -P ARGS             Qemu smp option. (default: 8)
 -q PORT             Specify qmp port or unix socket file (e.g. /tmp/my_qmp_sock). (default port: 3334)
 -s PORT             Add telnet serial console on the chosen local port. Requires port number. (default: 3333)
 -t DEVICE_TYPE      iSCSI device type. Values allowed: [scsi-block|scsi-hd] (default: scsi-block)
--T                  Start VM with TPM.
+-T                  Start VM with TPM. Requires swtpm package on the host.
 -v PORT             VNC port
 
 Long options:
